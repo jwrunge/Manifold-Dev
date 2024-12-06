@@ -1,19 +1,20 @@
 {
   "tasks": {
-    "dev": "deno run --watch main.ts"
+    "dev": "deno run --watch main.ts",
+    "uglify": "deno run npm:uglify-js ./dist/dev.manifold.js -o ./dist/manifold2.js -c -m"
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@1"
+    "@std/assert": "jsr:@std/assert@1",
+    "uglify-js": "npm:uglify-js@^3.19.3"
   },
   "compilerOptions": {
     "lib": [
+      "deno.ns",
+      "deno.shared_globals",
       "DOM",
       "DOM.iterable",
       "ESNext"
     ],
-    "module": "ESNext",
-    "target": "ESNext",
-    "moduleDetection": "force",
     "strict": true
   }
 }
