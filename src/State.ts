@@ -102,6 +102,7 @@ class Effect {
 }
 
 export class State<T = unknown> {
+	public name: string;
 	private _value: T;
 	private _reactive: T;
 	private _derive?: () => T;
@@ -112,8 +113,8 @@ export class State<T = unknown> {
 
 	private static reg = new Map<string, State<unknown>>();
 
-	constructor(value: T, public name?: string) {
-		this.name ??= Math.random().toString(36).substring(2, 15);
+	constructor(value: T, name?: string) {
+		this.name = name ?? Math.random().toString(36).substring(2, 15);
 		this._value = value;
 		this._reactive = this._createProxy(value);
 	}

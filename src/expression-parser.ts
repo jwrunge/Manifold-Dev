@@ -1,3 +1,11 @@
+import { CtxFunction } from "./registryRefactor";
+import { State } from "./State";
+
+export interface StateReference {
+	name: string;
+	state: State<unknown>;
+}
+
 const ID = "[a-zA-Z_$][a-zA-Z0-9_$]*",
 	PROP = `${ID}(?:\\.${ID})*`,
 	STATE_PROP = `@${PROP}`,
@@ -103,7 +111,7 @@ const parseTernary = (expr: string) => {
 
 export const evalProp = (
 	expr: string,
-	ctx: Record<string, unknown>
+	ctx: Record<string, unknown> = {}
 ): unknown => {
 	const parts = expr.split(".");
 	let result: unknown = ctx;
@@ -131,7 +139,7 @@ const parseValue = (val: string, ctx: Record<string, unknown>): any => {
 
 const evalComparison = (
 	expr: string,
-	ctx: Record<string, unknown>
+	ctx: Record<string, unknown> = {}
 ): boolean => {
 	const match = expr.match(COMP_RE);
 	if (!match?.[1] || !match[3]) return false;
@@ -164,16 +172,62 @@ const evalComparison = (
 };
 
 export interface ExpressionResult {
-	fn: (ctx: Record<string, unknown>) => unknown;
-	stateRefs: string[];
+	fn: CtxFunction;
+	stateRefs: Set<{ name: string; state: State<unknown> }>;
 }
+
+const createStateReference = (stateExpr: string): StateReference | null => {
+	// Handle aliasing: @myState.prop as alias
+	const aliasMatch = stateExpr.match(
+		/^(@[^\s]+)\s+as\s+([a-zA-Z_$][a-zA-Z0-9_$]*)$/
+	);
+	let actualStateExpr = stateExpr;
+	let aliasName: string | null = null;
+
+	if (aliasMatch && aliasMatch[1] && aliasMatch[2]) {
+		actualStateExpr = aliasMatch[1];
+		aliasName = aliasMatch[2];
+	}
+
+	const propName = actualStateExpr.slice(1); // Remove @ prefix
+	const parts = propName.split(".");
+	const baseStateName = parts[0];
+
+	if (!baseStateName) return null;
+
+	const baseState = State.get(baseStateName);
+	if (!baseState) return null;
+
+	let resultState: State<unknown>;
+	let defaultName: string;
+
+	// If no properties, return the base state
+	if (parts.length === 1) {
+		resultState = baseState;
+		defaultName = baseStateName;
+	} else {
+		// If there are properties, create a computed state
+		const propertyPath = parts.slice(1);
+		defaultName = `${baseStateName}.${propertyPath.join(".")}`;
+		resultState = State._createComputed(() => {
+			return evalProp(propertyPath.join("."), {
+				[baseStateName]: baseState.value,
+			});
+		}, defaultName);
+	}
+
+	return {
+		name: aliasName || defaultName,
+		state: resultState,
+	};
+};
 
 export const evaluateExpression = (
 	expr: string | undefined,
 	isEventHandler = false
 ): ExpressionResult => {
 	expr = expr?.trim();
-	if (!expr) return { fn: () => undefined, stateRefs: [] };
+	if (!expr) return { fn: () => undefined, stateRefs: new Set() };
 
 	// Check if this is a JavaScript arrow function or regular function
 	// Only detect if it doesn't contain @ symbols (which would make it a Manifold expression)
@@ -185,30 +239,28 @@ export const evaluateExpression = (
 			const func = new Function("return (" + expr + ")")();
 			if (isEventHandler) {
 				// For event handlers, return the function itself
-				return { fn: () => func, stateRefs: [] };
+				return { fn: () => func, stateRefs: new Set() };
 			} else {
 				// For regular properties, call the function and return its result
-				return { fn: () => func(), stateRefs: [] };
+				return { fn: () => func(), stateRefs: new Set() };
 			}
 		} catch (error) {
 			// Fall through to normal expression evaluation if JavaScript function creation fails
 		}
 	}
 
-	const stateRefs: string[] = [];
+	const stateRefs = new Set<{ name: string; state: State<unknown> }>();
 	Array.from(expr.matchAll(STATE_RE)).forEach((match) => {
-		const baseState = match[0].slice(1).split(".")[0];
-		if (baseState && !stateRefs.includes(baseState)) {
-			stateRefs.push(baseState);
-		}
+		const stateRef = createStateReference(match[0]);
+		if (stateRef) stateRefs.add(stateRef);
 	});
 
 	const createResult = (
-		fn: (ctx: Record<string, unknown>) => unknown,
-		additionalRefs: string[] = []
+		fn: CtxFunction,
+		additionalRefs: Set<{ name: string; state: State<unknown> }> = new Set()
 	): ExpressionResult => ({
 		fn,
-		stateRefs: [...new Set([...stateRefs, ...additionalRefs])],
+		stateRefs: new Set([...stateRefs, ...additionalRefs]),
 	});
 
 	if (expr in LITERALS) return createResult(() => LITERALS[expr]);
@@ -265,7 +317,7 @@ export const evaluateExpression = (
 		const fv = evaluateExpression(ternary._falseValue);
 		return createResult(
 			(ctx) => (cond.fn(ctx) ? tv.fn(ctx) : fv.fn(ctx)),
-			[...cond.stateRefs, ...tv.stateRefs, ...fv.stateRefs]
+			new Set([...cond.stateRefs, ...tv.stateRefs, ...fv.stateRefs])
 		);
 	}
 
@@ -289,7 +341,7 @@ export const evaluateExpression = (
 		const right = evaluateExpression(orMatch[2]);
 		return createResult(
 			(ctx) => left.fn(ctx) || right.fn(ctx),
-			[...left.stateRefs, ...right.stateRefs]
+			new Set([...left.stateRefs, ...right.stateRefs])
 		);
 	}
 
@@ -299,7 +351,7 @@ export const evaluateExpression = (
 		const right = evaluateExpression(andMatch[2]);
 		return createResult(
 			(ctx) => left.fn(ctx) && right.fn(ctx),
-			[...left.stateRefs, ...right.stateRefs]
+			new Set([...left.stateRefs, ...right.stateRefs])
 		);
 	}
 
@@ -308,37 +360,34 @@ export const evaluateExpression = (
 		const left = evaluateExpression(arithParse.left);
 		const right = evaluateExpression(arithParse.right);
 		const op = arithParse.op;
-		return createResult(
-			(ctx) => {
-				const leftVal = left.fn(ctx),
-					rightVal = right.fn(ctx);
-				if (op === "+") {
-					return typeof leftVal === "string" ||
-						typeof rightVal === "string"
-						? String(leftVal ?? "") + String(rightVal ?? "")
-						: typeof leftVal === "number" &&
-						  typeof rightVal === "number"
-						? leftVal + rightVal
-						: undefined;
-				} else if (
-					typeof leftVal === "number" &&
-					typeof rightVal === "number"
-				) {
-					switch (op) {
-						case "-":
-							return leftVal - rightVal;
-						case "*":
-							return leftVal * rightVal;
-						case "/":
-							return leftVal / rightVal;
-						default:
-							return undefined;
-					}
+		return createResult((ctx) => {
+			const leftVal = left.fn(ctx),
+				rightVal = right.fn(ctx);
+			if (op === "+") {
+				return typeof leftVal === "string" ||
+					typeof rightVal === "string"
+					? String(leftVal ?? "") + String(rightVal ?? "")
+					: typeof leftVal === "number" &&
+					  typeof rightVal === "number"
+					? leftVal + rightVal
+					: undefined;
+			} else if (
+				typeof leftVal === "number" &&
+				typeof rightVal === "number"
+			) {
+				switch (op) {
+					case "-":
+						return leftVal - rightVal;
+					case "*":
+						return leftVal * rightVal;
+					case "/":
+						return leftVal / rightVal;
+					default:
+						return undefined;
 				}
-				return undefined;
-			},
-			[...left.stateRefs, ...right.stateRefs]
-		);
+			}
+			return undefined;
+		}, new Set([...left.stateRefs, ...right.stateRefs]));
 	}
 
 	const nullMatch = expr.match(NULL_RE);
@@ -347,7 +396,7 @@ export const evaluateExpression = (
 		const right = evaluateExpression(nullMatch[2]);
 		return createResult(
 			(ctx) => left.fn(ctx) ?? right.fn(ctx),
-			[...left.stateRefs, ...right.stateRefs]
+			new Set([...left.stateRefs, ...right.stateRefs])
 		);
 	}
 
@@ -362,7 +411,7 @@ export const evaluateExpression = (
 			const result = evalProp(expr, ctx);
 			return result === undefined &&
 				!expr.includes(".") &&
-				Object.keys(ctx).length === 0
+				Object.keys(ctx ?? {}).length === 0
 				? expr
 				: result;
 		});

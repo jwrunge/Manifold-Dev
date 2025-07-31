@@ -30,18 +30,6 @@ export const MANIFOLD_ATTRIBUTES = [
 	"sync",
 ] as const;
 
-export interface ParsedElement {
-	show?: State<unknown>; // Condition based on data-if or data-else-if
-	each?: State<Array<unknown>>; // Loop State based on data-each
-	props: Record<string, State<unknown>>; // Any bound properties (assigned with data-bind or data-scope) - a .effect() should be set on any State bound to a property with data-bind BEFORE adding to this Record that updates the bound property
-	else?: boolean; // Whether or not this element has a data-else attribute (conditional logic only)
-	await?: State<Promise<unknown>>; // Promise state for data-await
-	then?: string; // Variable name for data-then results
-	catch?: string; // Variable name for data-catch errors
-	process?: Record<string, (result: unknown) => unknown>; // Processing functions for different events (data-process)
-	target?: Record<string, string>; // Target selectors for different events (data-target)
-}
-
 export class RegEl {
 	private static _registry: WeakMap<Element | DocumentFragment, RegEl> =
 		new WeakMap();

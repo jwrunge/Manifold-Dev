@@ -10,6 +10,16 @@ Manifold is a reactive state management and front-end templating library that ai
 
 Manifold uses data attributes on regular HTML elements for all reactive templating.
 
+## SIMPLIFY
+
+data-bind and data-sync should be more dynamic --> data-bind.prop="single expression", data-sync.prop="@storeName" OR data-sync.prop="input expression >> processing expression/assignment"
+
+We need to add data-[listener] (e.g. data-onclick, data-onchange) that accepts a registered function or function expression.
+
+data-await works as before. data-then includes processing option: data-then="variableAlias" OR data-then="variableAlias >> processing expression/assignment". Alternative to data-then is data-target="variableAlias >> processing expression >> #targetSelector".
+
+Expression parser should call into Manifold registered props and functions if the string is a single word not prefixed by "@".
+
 ### Data Attributes
 
 | Attribute    | Purpose                                                                                                       | Example                                                                                                                                                     |
