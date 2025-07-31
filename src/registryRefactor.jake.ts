@@ -25,116 +25,6 @@ const _setProp = (element: RegisterableEl, prop: string, value: unknown) => {
 	else element.setAttribute(prop, String(value ?? ""));
 };
 
-const _parseContextualExpressions = (
-	attr: string,
-	value: string,
-	element: RegisterableEl,
-	props: Props
-): { fns: CtxFunction[]; states: State<unknown>[] } => {
-	const expressions = value?.split(">>") ?? [];
-	const fns: CtxFunction[] = [];
-	const states: State<unknown>[] = [];
-
-	// Context-aware parsing based on attribute type
-	if (attr.startsWith("bind.")) {
-		// data-bind.prop: Only first expression, no processing
-		if (expressions.length > 1) {
-			_warnOnExtraClause(`bind.${attr.split(".")[1]}`, element);
-		}
-		const { fn, stateRefs } = evaluateExpression(expressions[0] ?? "");
-		fns.push(fn);
-		for (const { name, state } of [...stateRefs]) {
-			props[name] = state;
-			states.push(state);
-		}
-	} else if (attr.startsWith("sync.")) {
-		// data-sync.prop: value >> processing_function
-		for (const exp of expressions.slice(0, 2)) {
-			const { fn, stateRefs } = evaluateExpression(exp);
-			fns.push(fn);
-			for (const { name, state } of [...stateRefs]) {
-				props[name] = state;
-				states.push(state);
-			}
-		}
-		if (expressions.length > 2) {
-			_warnOnExtraClause(`sync.${attr.split(".")[1]}`, element);
-		}
-	} else if (attr.startsWith("on")) {
-		// data-onclick etc: expression >> (assignment OR insert_method(selector))
-		for (const exp of expressions.slice(0, 2)) {
-			const { fn, stateRefs } = evaluateExpression(exp);
-			fns.push(fn);
-			for (const { name, state } of [...stateRefs]) {
-				props[name] = state;
-				states.push(state);
-			}
-		}
-
-		// Check if second expression is a DOM insertion method
-		const secondExp = expressions[1]?.trim();
-		if (
-			secondExp &&
-			/^(append|prepend|replace|swap)\s*\(/.test(secondExp)
-		) {
-			// Create a temporary RegEl wrapper for _handleSelectorInsert
-			const tempRegEl = { _element: element, props } as any;
-			const selectorFn = _handleSelectorInsert(secondExp, tempRegEl);
-			if (selectorFn) fns.push(selectorFn);
-		}
-
-		if (expressions.length > 2) {
-			_warnOnExtraClause(`event.${attr}`, element);
-		}
-	} else if (attrs.includes(attr)) {
-		// Control flow attributes: if, each, await, then, catch, target
-		if (attr === "target") {
-			// data-target: expression >> insert_method(selector)
-			for (const exp of expressions.slice(0, 2)) {
-				const { fn, stateRefs } = evaluateExpression(exp);
-				fns.push(fn);
-				for (const { name, state } of [...stateRefs]) {
-					props[name] = state;
-					states.push(state);
-				}
-			}
-
-			// Second expression should be insertion method
-			const insertExp = expressions[1]?.trim();
-			if (
-				insertExp &&
-				/^(append|prepend|replace|swap)\s*\(/.test(insertExp)
-			) {
-				const tempRegEl = { _element: element, props } as any;
-				const selectorFn = _handleSelectorInsert(
-					insertExp,
-					tempRegEl,
-					fns[0]
-				);
-				if (selectorFn) fns[1] = selectorFn; // Replace the raw function with selector function
-			}
-
-			if (expressions.length > 2) {
-				_warnOnExtraClause(`target`, element);
-			}
-		} else {
-			// Other control flow: only first expression typically used
-			const { fn, stateRefs } = evaluateExpression(expressions[0] ?? "");
-			fns.push(fn);
-			for (const { name, state } of [...stateRefs]) {
-				props[name] = state;
-				states.push(state);
-			}
-
-			if (expressions.length > 1 && !["then", "catch"].includes(attr)) {
-				_warnOnExtraClause(attr, element);
-			}
-		}
-	}
-
-	return { fns, states };
-};
-
 const _handleSelectorInsert = (
 	selectorExp: string,
 	element: RegEl,
@@ -230,33 +120,45 @@ export class RegEl {
 		// Get State props, set up expression funcs
 		for (const [attr, value] of Object.entries(_element.dataset)) {
 			const isSync = attr.startsWith("sync.");
-			const isBind = attr.startsWith("bind.");
-			const isEvent = attr.startsWith("on");
-			const isControl = attrs.includes(attr);
+			const expTarget = attr.startsWith("bind.")
+				? bindExps
+				: isSync
+				? syncExps
+				: attr.startsWith("on")
+				? eventExps
+				: null;
 
-			if (!isBind && !isSync && !isEvent && !isControl) continue;
-			if (!value) continue; // Skip if no value
+			if (!expTarget && !attrs.includes(attr)) continue;
 
-			// Use context-aware expression parsing
-			const { fns, states } = _parseContextualExpressions(
-				attr,
-				value,
-				_element,
-				this.props
-			);
+			const expressions = value?.split(">>") ?? [];
+			const selectorExp = expressions.at(3)?.trim();
+			const fns: CtxFunction[] = [];
+			const states: State<unknown>[] = [];
 
-			if (isBind) {
-				const attrName = attr.replace("bind.", "");
-				bindExps.set(attrName, fns);
-			} else if (isSync) {
-				const attrName = attr.replace("sync.", "");
-				syncExps.set(attrName, fns);
-				if (states.length === 1) syncStates.set(attrName, states[0]!);
-			} else if (isEvent) {
-				eventExps.set(attr, fns);
-			} else {
-				exps.set(attr, fns);
+			for (const exp of expressions.slice(0, 2)) {
+				const { fn, stateRefs } = evaluateExpression(exp);
+				fns.push(fn);
+				for (const { name, state } of [...stateRefs]) {
+					this.props[name] = state;
+					states.push(state);
+				}
 			}
+
+			if (selectorExp) {
+				const selectorFn = _handleSelectorInsert(
+					selectorExp,
+					this,
+					fns.at(1)
+				);
+				if (selectorFn) fns.push(selectorFn);
+			}
+
+			if (expTarget) {
+				const attrName = attr.replace(/(bind|sync)\./, "");
+				expTarget.set(attrName, fns);
+				if (isSync && states.length === 1)
+					syncStates.set(attrName, states[0]!);
+			} else exps.set(attr, fns);
 		}
 
 		// Handle property bindings
@@ -284,28 +186,6 @@ export class RegEl {
 
 				// Initial sync
 				_setProp(_element, prop, propState.value);
-			}
-		}
-
-		// Handle event listeners
-		for (const [eventAttr, fns] of eventExps) {
-			const eventType = eventAttr.replace(/^on/, ""); // onclick -> click
-			const [handler, processor, inserter] = fns;
-
-			if (handler) {
-				_element.addEventListener(eventType, (event) => {
-					const result = handler(this.props);
-
-					// If there's a processor, run it
-					if (processor) {
-						processor({ ...this.props, event, $result: result });
-					}
-
-					// If there's an inserter (DOM manipulation), run it
-					if (inserter) {
-						inserter({ ...this.props, event, $result: result });
-					}
-				});
 			}
 		}
 

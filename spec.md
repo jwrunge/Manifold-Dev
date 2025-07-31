@@ -16,9 +16,17 @@ data-bind and data-sync should be more dynamic --> data-bind.prop="single expres
 
 We need to add data-[listener] (e.g. data-onclick, data-onchange) that accepts a registered function or function expression.
 
-data-await works as before. data-then includes processing option: data-then="variableAlias" OR data-then="variableAlias >> processing expression/assignment". data-catch provides error handling with the error available as $error in processing expressions. Alternative to data-then is data-target="variableAlias >> processing expression >> #targetSelector".
+data-await works as before. data-then includes processing option: data-then="variableAlias" OR data-then="variableAlias >> processing expression/assignment". data-catch provides error handling with the error available as $error in processing expressions. data-target uses: "expression >> insert_method(selector)".
 
 Expression parser should call into Manifold registered props and functions if the string is a single word not prefixed by "@".
+
+**Context-Aware Expression Syntax**: The `>>` operator has different meanings based on context:
+
+-   **data-bind.prop**: Single expression only (no `>>` processing)
+-   **data-sync.prop**: `value >> processing_function`
+-   **data-onclick, etc**: `expression >> (assignment OR insert_method(selector))`
+-   **data-target**: `expression >> insert_method(selector)`
+-   **Control flow**: Typically single expressions (except data-then/data-catch)
 
 ### Data Attributes
 
@@ -39,7 +47,12 @@ Expression parser should call into Manifold registered props and functions if th
 
 **State Aliasing**: Use `@state.property as alias` syntax to create readable aliases for complex state references.
 
-**Expression Syntax**: Expressions support `>>` chaining for processing: `expression >> processing >> target(selector)`
+**Context-Aware Expression Syntax**: The `>>` operator meaning depends on the attribute context:
+
+-   **data-bind.prop**: Single expression only
+-   **data-sync.prop**: `value >> processing_function`
+-   **data-on{event}**: `expression >> (assignment OR insert_method(selector))`
+-   **data-target**: `expression >> insert_method(selector)`
 
 **Interpolation**: Use `${expression}` syntax within element content to display dynamic values.
 
@@ -100,6 +113,21 @@ Expression parser should call into Manifold registered props and functions if th
 <button data-onclick="@user.save()">Save User</button>
 <form data-onsubmit="handleSubmit(event)">...</form>
 <input data-onchange="@user.name = event.target.value" />
+
+<!-- Event handlers with DOM insertion -->
+<button data-onclick="fetchPosts() >> append(#posts-list)">
+	Load More Posts
+</button>
+<button data-onclick="getNotification() >> prepend(#notifications)">
+	Add Alert
+</button>
+<button data-onclick="generateReport() >> replace(#main-content)">
+	Generate Report
+</button>
+
+<!-- Target-based content insertion -->
+<div data-target="fetchUser() >> replace(#user-profile)">Loading user...</div>
+<div data-target="@searchResults >> append(#results-list)">Searching...</div>
 ```
 
 **State aliasing:**
