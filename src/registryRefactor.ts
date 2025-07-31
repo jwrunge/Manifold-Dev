@@ -242,6 +242,64 @@ export class RegEl {
 			} else showState = computed(() => conditional(this.props));
 		}
 
+		// Handle async operations
+		const awaitExp = exps.get("await");
+		const thenExp = exps.get("then");
+		const catchExp = exps.get("catch");
+
+		if (awaitExp) {
+			// Warn if processing clause for await
+			if (awaitExp.at(1)) _warnOnExtraClause("await", _element);
+
+			const awaitState = computed(async () => {
+				try {
+					const promise = awaitExp.at(0)?.(this.props);
+					if (promise instanceof Promise) {
+						return await promise;
+					}
+					return promise;
+				} catch (error) {
+					throw error;
+				}
+			});
+
+			awaitState.effect(async () => {
+				try {
+					const result = await awaitState.value;
+
+					// Execute data-then if available
+					if (thenExp) {
+						if (thenExp.at(1)) _warnOnExtraClause("then", _element);
+
+						// Pass the resolved value as a prop
+						const thenProps = { ...this.props, $result: result };
+						thenExp.at(0)?.(thenProps);
+					}
+				} catch (error) {
+					// Execute data-catch if available
+					if (catchExp) {
+						if (catchExp.at(1))
+							_warnOnExtraClause("catch", _element);
+
+						// Pass the error as a prop
+						const catchProps = { ...this.props, $error: error };
+						catchExp.at(0)?.(catchProps);
+					} else {
+						console.error(
+							"Unhandled async error:",
+							error,
+							_element
+						);
+					}
+				}
+			});
+		} else if (thenExp || catchExp) {
+			console.warn(
+				"data-then or data-catch found without data-await",
+				_element
+			);
+		}
+
 		// Set up main display states
 		this._show = showState;
 		const showHide = () => {
