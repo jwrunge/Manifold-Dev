@@ -5,16 +5,7 @@ type RegisterableEl = HTMLElement | SVGElement | MathMLElement;
 type Props = Record<string, unknown>;
 export type CtxFunction = (props?: Props) => unknown;
 
-const attrs = [
-	"if",
-	"elseif",
-	"each",
-	"scope",
-	"await",
-	"then",
-	"catch",
-	"target",
-];
+const attrs = ["if", "elseif", "each", "await", "then", "catch"];
 
 const _warnOnExtraClause = (attr: string, element: RegisterableEl) => {
 	console.warn(`Ignoring processing clause on ${attr}`, element);
@@ -87,48 +78,17 @@ const _parseContextualExpressions = (
 			_warnOnExtraClause(`event.${attr}`, element);
 		}
 	} else if (attrs.includes(attr)) {
-		// Control flow attributes: if, each, await, then, catch, target
-		if (attr === "target") {
-			// data-target: expression >> insert_method(selector)
-			for (const exp of expressions.slice(0, 2)) {
-				const { fn, stateRefs } = evaluateExpression(exp);
-				fns.push(fn);
-				for (const { name, state } of [...stateRefs]) {
-					props[name] = state;
-					states.push(state);
-				}
-			}
+		// Control flow attributes: if, each, await, then, catch
+		// Other control flow: only first expression typically used
+		const { fn, stateRefs } = evaluateExpression(expressions[0] ?? "");
+		fns.push(fn);
+		for (const { name, state } of [...stateRefs]) {
+			props[name] = state;
+			states.push(state);
+		}
 
-			// Second expression should be insertion method
-			const insertExp = expressions[1]?.trim();
-			if (
-				insertExp &&
-				/^(append|prepend|replace|swap)\s*\(/.test(insertExp)
-			) {
-				const tempRegEl = { _element: element, props } as any;
-				const selectorFn = _handleSelectorInsert(
-					insertExp,
-					tempRegEl,
-					fns[0]
-				);
-				if (selectorFn) fns[1] = selectorFn; // Replace the raw function with selector function
-			}
-
-			if (expressions.length > 2) {
-				_warnOnExtraClause(`target`, element);
-			}
-		} else {
-			// Other control flow: only first expression typically used
-			const { fn, stateRefs } = evaluateExpression(expressions[0] ?? "");
-			fns.push(fn);
-			for (const { name, state } of [...stateRefs]) {
-				props[name] = state;
-				states.push(state);
-			}
-
-			if (expressions.length > 1 && !["then", "catch"].includes(attr)) {
-				_warnOnExtraClause(attr, element);
-			}
+		if (expressions.length > 1 && !["then", "catch"].includes(attr)) {
+			_warnOnExtraClause(attr, element);
 		}
 	}
 
