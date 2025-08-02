@@ -1,8 +1,8 @@
 import { State, computed } from "./State";
-import { MANIFOLD_ATTRIBUTES, RegEl } from "./registry";
+import { MANIFOLD_ATTRIBUTES, RegEl } from "./registry-interpolation";
 
 export { State, computed };
-export { RegEl } from "./registry";
+export { RegEl } from "./registry-interpolation";
 
 const init = (
 	container: HTMLElement | SVGElement | MathMLElement | Document = document

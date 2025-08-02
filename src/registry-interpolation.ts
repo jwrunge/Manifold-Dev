@@ -5,7 +5,8 @@ type RegisterableEl = HTMLElement | SVGElement | MathMLElement;
 type Props = Record<string, unknown>;
 export type CtxFunction = (props?: Props) => unknown;
 
-const attrs = ["if", "elseif", "each", "await", "then", "catch"];
+const attrs = ["if", "elseif", "each", "await", "then", "catch", "register"];
+export const MANIFOLD_ATTRIBUTES = attrs;
 
 const _warnOnExtraClause = (attr: string, element: RegisterableEl) => {
 	console.warn(`Ignoring processing clause on ${attr}`, element);
@@ -14,6 +15,47 @@ const _warnOnExtraClause = (attr: string, element: RegisterableEl) => {
 const _setProp = (element: RegisterableEl, prop: string, value: unknown) => {
 	if (prop in element) (element as any)[prop] = value;
 	else element.setAttribute(prop, String(value ?? ""));
+};
+
+const _parseInterpolations = (
+	text: string
+): {
+	template: string;
+	expressions: { expression: string; index: number }[];
+} => {
+	const expressions: { expression: string; index: number }[] = [];
+	let template = "";
+	let lastIndex = 0;
+	let placeholderIndex = 0;
+
+	// Handle escaped interpolations: \${} or \@{} and regular ${} or @{}
+	const interpolationRegex = /\\?([\$@])\{([^}]+)\}/g;
+	let match;
+
+	while ((match = interpolationRegex.exec(text)) !== null) {
+		// Add text before the interpolation
+		template += text.slice(lastIndex, match.index);
+
+		if (match[0].startsWith("\\")) {
+			// Escaped - treat as literal text
+			template += match[0].slice(1); // Remove the backslash
+		} else {
+			// Not escaped - create placeholder
+			const placeholder = `__MANIFOLD_${placeholderIndex}__`;
+			template += placeholder;
+
+			expressions.push({
+				expression: match[2]!,
+				index: placeholderIndex,
+			});
+			placeholderIndex++;
+		}
+
+		lastIndex = interpolationRegex.lastIndex;
+	}
+
+	template += text.slice(lastIndex);
+	return { template, expressions };
 };
 
 const _handleSelectorInsert = (
@@ -88,10 +130,23 @@ export class RegEl {
 	private _each?: State<unknown[]>;
 	public props: Props = {};
 
+	// Static method for easy registration
+	static init(scope: HTMLElement | Document = document.body) {
+		const elements = scope.querySelectorAll("[data-register]");
+		elements.forEach((el) => new RegEl(el as RegisterableEl));
+	}
+
+	// Manual registration for dynamic content
+	static register(element: RegisterableEl) {
+		return new RegEl(element);
+	}
+
 	constructor(private _element: RegisterableEl) {
 		this._cachedContent = _element.cloneNode(true) as RegisterableEl;
 
 		const bindExps = new Map<string, CtxFunction[]>();
+		const syncExps = new Map<string, CtxFunction[]>();
+		const syncStates = new Map<string, State<unknown>>();
 		const eventExps = new Map<string, CtxFunction[]>();
 		const exps = new Map<string, CtxFunction[]>();
 
@@ -100,70 +155,84 @@ export class RegEl {
 		while (parent) {
 			for (const [key, state] of Object.entries(
 				RegEl._registry.get(parent)?.props ?? {}
-			))
+			)) {
 				this.props[key] = state;
+			}
 			parent = parent.parentElement;
+		}
+
+		// Handle interpolation if data-register is present
+		if (_element.hasAttribute("data-register")) {
+			this._scanAttributeInterpolations(_element);
+			this._scanTextNodeInterpolations(_element);
 		}
 
 		// Get State props, set up expression funcs
 		for (const [attr, value] of Object.entries(_element.dataset)) {
-			const expTarget = /^(bind|sync)\./.test(attr)
+			const isSync = attr.startsWith("sync.");
+			const expTarget = attr.startsWith("bind.")
 				? bindExps
+				: isSync
+				? syncExps
 				: attr.startsWith("on")
 				? eventExps
 				: null;
 
 			if (!expTarget && !attrs.includes(attr)) continue;
 
-			let expressions = value?.split(">>")?.slice(0, 2) ?? [];
-			let selectorExp: string | undefined;
+			const expressions = value?.split(">>") ?? [];
+			const selectorExp = expressions.at(3)?.trim();
 			const fns: CtxFunction[] = [];
 			const states: State<unknown>[] = [];
 
-			const isSync = attr.startsWith("sync.");
-			const isTarget = attr.startsWith("target.");
-
-			if (!(isSync || isTarget) && expressions.at(1)) {
-				_warnOnExtraClause(attr, _element);
-				expressions.pop();
+			for (const exp of expressions.slice(0, 2)) {
+				const { fn, stateRefs } = evaluateExpression(exp);
+				fns.push(fn);
+				for (const { name, state } of [...stateRefs]) {
+					this.props[name] = state;
+					states.push(state);
+				}
 			}
 
-			for (const i of [0, 1]) {
-				const exp = expressions[i];
-
-				if (i === 0 || !isTarget) {
-					const { fn, stateRefs } = evaluateExpression(exp);
-					fns.push(fn);
-					for (const { name, state } of [...stateRefs]) {
-						this.props[name] = state;
-						states.push(state);
-					}
-				} else {
-					const selectorFn = exp
-						? _handleSelectorInsert(exp?.trim(), this, fns.at(1))
-						: null;
-					if (selectorFn) fns.push(selectorFn);
-				}
+			if (selectorExp) {
+				const selectorFn = _handleSelectorInsert(
+					selectorExp,
+					this,
+					fns.at(1)
+				);
+				if (selectorFn) fns.push(selectorFn);
 			}
 
 			if (expTarget) {
 				const attrName = attr.replace(/(bind|sync)\./, "");
 				expTarget.set(attrName, fns);
+				if (isSync && states.length === 1)
+					syncStates.set(attrName, states[0]!);
 			} else exps.set(attr, fns);
 		}
 
 		// Handle property bindings
-		for (const [prop, [bind, sync]] of bindExps) {
+		for (const [prop, fns] of bindExps) {
+			if (fns.at(1)) _warnOnExtraClause(prop, _element);
+			_setProp(_element, prop, fns.at(0)?.(this.props));
+		}
+
+		// Handle property syncs
+		for (const [prop, [bind, sync]] of syncExps) {
 			if (bind) {
 				const propState = computed(() => bind(this.props));
 
-				if (sync)
-					propState.effect(() => {
-						const newValue = propState.value;
-						_setProp(_element, prop, newValue);
+				propState.effect(() => {
+					const newValue = propState.value;
+					_setProp(_element, prop, newValue);
 
-						sync?.(this.props);
-					});
+					if (sync) {
+						sync(this.props);
+					} else {
+						const state = syncStates.get(prop);
+						if (state) state.value = newValue;
+					}
+				});
 
 				// Initial sync
 				_setProp(_element, prop, propState.value);
@@ -396,5 +465,145 @@ export class RegEl {
 		});
 
 		RegEl._registry.set(_element, this);
+	}
+
+	private _scanAttributeInterpolations(element: RegisterableEl) {
+		for (let i = 0; i < element.attributes.length; i++) {
+			const attr = element.attributes[i]!;
+			const { template, expressions } = _parseInterpolations(attr.value);
+
+			if (expressions.length > 0) {
+				// Collect state references from all expressions
+				expressions.forEach(({ expression }) => {
+					const { stateRefs } = evaluateExpression(expression);
+					stateRefs.forEach((ref) => {
+						this.props[ref.name] = ref.state;
+					});
+				});
+
+				// Create lazy evaluation effect for this attribute
+				const cachedValues = new Map<string, string>();
+				let lastResult = attr.value;
+
+				const effect = computed(() => {
+					let result = template;
+					let hasChanged = false;
+
+					expressions.forEach(({ expression, index }) => {
+						const cacheKey = `expr_${index}`;
+						const { fn } = evaluateExpression(expression);
+						const newValue = String(fn(this.props) ?? "");
+
+						if (cachedValues.get(cacheKey) !== newValue) {
+							cachedValues.set(cacheKey, newValue);
+							hasChanged = true;
+						}
+
+						result = result.replace(
+							`__MANIFOLD_${index}__`,
+							newValue
+						);
+					});
+
+					// Only return new result if something actually changed
+					if (hasChanged || result !== lastResult) {
+						lastResult = result;
+						return result;
+					}
+
+					return lastResult;
+				});
+
+				effect.effect(() => {
+					const newValue = effect.value;
+					if (newValue !== attr.value) {
+						element.setAttribute(attr.name, newValue);
+					}
+				});
+			}
+		}
+	}
+
+	private _scanTextNodeInterpolations(root: RegisterableEl) {
+		// Normalize text nodes first to prevent splitting issues
+		root.normalize();
+
+		const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+		let textNode;
+		while ((textNode = walker.nextNode())) {
+			const { template, expressions } = _parseInterpolations(
+				textNode.textContent || ""
+			);
+
+			if (expressions.length > 0) {
+				this._createTextNodeEffect(
+					textNode as Text,
+					template,
+					expressions
+				);
+			}
+		}
+	}
+
+	private _createTextNodeEffect(
+		textNode: Text,
+		template: string,
+		expressions: any[]
+	) {
+		// Create lazy evaluation effect for this text node
+		const cachedValues = new Map<string, string>();
+		let lastResult = textNode.textContent || "";
+
+		// Collect state references from all expressions
+		const allStateRefs = new Set<{ name: string; state: State<unknown> }>();
+		expressions.forEach(({ expression }: { expression: string }) => {
+			const { stateRefs } = evaluateExpression(expression);
+			stateRefs.forEach((ref) => {
+				allStateRefs.add(ref);
+				this.props[ref.name] = ref.state;
+			});
+		});
+
+		const effect = computed(() => {
+			let result = template;
+			let hasChanged = false;
+
+			expressions.forEach(
+				({
+					expression,
+					index,
+				}: {
+					expression: string;
+					index: number;
+				}) => {
+					const cacheKey = `expr_${index}`;
+					const { fn } = evaluateExpression(expression);
+					const newValue = String(fn(this.props) ?? "");
+
+					if (cachedValues.get(cacheKey) !== newValue) {
+						cachedValues.set(cacheKey, newValue);
+						hasChanged = true;
+					}
+
+					result = result.replace(`__MANIFOLD_${index}__`, newValue);
+				}
+			);
+
+			// Only return new result if something actually changed
+			if (hasChanged || result !== lastResult) {
+				lastResult = result;
+				return result;
+			}
+
+			return lastResult;
+		});
+
+		effect.effect(() => {
+			const newValue = effect.value;
+			if (newValue !== textNode.textContent) {
+				textNode.textContent = newValue;
+			}
+		});
 	}
 }

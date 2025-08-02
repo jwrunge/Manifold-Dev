@@ -1,4 +1,4 @@
-import { CtxFunction } from "./registryRefactor";
+import { CtxFunction } from "./registry-interpolation";
 import { State } from "./State";
 
 export interface StateReference {
@@ -408,7 +408,27 @@ export const evaluateExpression = (
 
 	if (PROP_RE.test(expr)) {
 		return createResult((ctx) => {
-			const result = evalProp(expr, ctx);
+			// First try to resolve from context (props)
+			let result = evalProp(expr, ctx);
+
+			// If not found in context, try State registry
+			if (result === undefined) {
+				const parts = expr.split(".");
+				const baseStateName = parts[0];
+				if (baseStateName) {
+					const baseState = State.get(baseStateName);
+					if (baseState) {
+						// Add state to context for property evaluation
+						const stateContext = {
+							...ctx,
+							[baseStateName]: baseState.value,
+						};
+						result = evalProp(expr, stateContext);
+					}
+				}
+			}
+
+			// Fallback to literal string if still undefined and it's a simple identifier
 			return result === undefined &&
 				!expr.includes(".") &&
 				Object.keys(ctx ?? {}).length === 0

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Manifold Interpolation Test</title>
+	</head>
+	<body>
+		<h1>Manifold Interpolation Test</h1>
+
+		<!-- Test interpolation with data-register -->
+		<div data-register id="test-container">
+			<h2>Hello ${user.name}!</h2>
+			<p>You have ${notifications.count} notifications.</p>
+			<input
+				type="text"
+				placeholder="${user.email}"
+				value="${user.name}"
+			/>
+			<p>Status: ${status} | Escaped: \${literal}</p>
+			<p>Complex: ${user.profile.settings.theme}</p>
+		</div>
+
+		<!-- Control buttons -->
+		<button onclick="updateUser()">Update User</button>
+		<button onclick="updateNotifications()">Update Notifications</button>
+		<button onclick="updateStatus()">Update Status</button>
+
+		<script type="module">
+			import { State } from "./src/index.ts";
+			import { RegEl } from "./src/registry-interpolation.ts";
+
+			// Create some test states
+			window.user = State.of({
+				name: "John Doe",
+				email: "john@example.com",
+				profile: {
+					settings: {
+						theme: "dark",
+					},
+				},
+			});
+
+			window.notifications = State.of({
+				count: 5,
+			});
+
+			window.status = State.of("online");
+
+			// Register the interpolation system
+			RegEl.init();
+
+			// Test functions
+			window.updateUser = () => {
+				user.value = {
+					...user.value,
+					name: "Jane Smith",
+					email: "jane@example.com",
+				};
+			};
+
+			window.updateNotifications = () => {
+				notifications.value = {
+					...notifications.value,
+					count: notifications.value.count + 1,
+				};
+			};
+
+			window.updateStatus = () => {
+				status.value = status.value === "online" ? "offline" : "online";
+			};
+
+			console.log("Interpolation test ready!");
+		</script>
+	</body>
+</html>
