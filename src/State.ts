@@ -407,15 +407,3 @@ export class State<T = unknown> {
 		return () => effect._stop();
 	}
 }
-
-/**
- * Create a computed state that derives its value from a function.
- * The state will automatically update when any dependencies change.
- *
- * @param deriveFn Function that computes the state value
- * @param name Optional name for the state (for debugging/registry)
- * @returns A new State that recomputes when dependencies change
- */
-export function computed<T>(deriveFn: () => T, name?: string): State<T> {
-	return State._createComputed(deriveFn, name);
-}

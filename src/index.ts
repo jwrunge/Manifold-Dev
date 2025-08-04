@@ -1,33 +1,15 @@
-import { State, computed } from "./State";
-import { MANIFOLD_ATTRIBUTES, RegEl } from "./registry-interpolation";
+import { State } from "./State";
+import { RegEl } from "./registry";
 
-export { State, computed };
-export { RegEl } from "./registry-interpolation";
-
-const init = (
-	container: HTMLElement | SVGElement | MathMLElement | Document = document
-) => {
-	// Find all elements with data attributes
-	for (const el of Array.from(
-		container.querySelectorAll(
-			MANIFOLD_ATTRIBUTES.map((attr) => `[data-${attr}]`).join(", ")
-		)
-	))
-		RegEl.register(el as HTMLElement | SVGElement | MathMLElement);
-};
-
-// Factory function for creating reactive state
-function watch<T>(deriveFn: () => T): State<T>;
-function watch<T>(value: T): State<T>;
-function watch<T>(value: T | (() => T)): State<T> {
-	if (typeof value === "function") {
-		return computed(value as () => T);
-	}
-	return new State(value as T);
-}
+const register = (container: HTMLElement | SVGElement | MathMLElement) =>
+	RegEl.register(container);
+const state = <T>(value: T, name?: string): State<T> => new State(value, name);
+const derived = <T>(deriveFn: () => T, name?: string): State<T> =>
+	State._createComputed(deriveFn, name);
 
 export default {
 	State,
-	watch,
-	init,
+	state,
+	derived,
+	register,
 };

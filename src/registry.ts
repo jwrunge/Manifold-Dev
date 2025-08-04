@@ -1,400 +1,178 @@
-import { evaluateExpression } from "./expression-parser";
-import { State, computed } from "./State";
+import { evaluateExpression, ExpressionResult } from "./expression-parser";
+import { State } from "./State";
 
 type RegisterableEl = HTMLElement | SVGElement | MathMLElement;
 type Props = Record<string, unknown>;
 export type CtxFunction = (props?: Props) => unknown;
 
-const attrs = ["if", "elseif", "each", "await", "then", "catch"];
-
-const _warnOnExtraClause = (attr: string, element: RegisterableEl) => {
-	console.warn(`Ignoring processing clause on ${attr}`, element);
-};
-
-const _setProp = (element: RegisterableEl, prop: string, value: unknown) => {
-	if (prop in element) (element as any)[prop] = value;
-	else element.setAttribute(prop, String(value ?? ""));
-};
-
-const _handleSelectorInsert = (
-	selectorExp: string,
-	element: RegEl,
-	fn?: CtxFunction
-): CtxFunction | undefined => {
-	const parts = selectorExp.split("(");
-	const selector = parts.pop()?.replace(")", "").trim();
-	const method = parts.at(0)?.trim() ?? "replace";
-
-	if (!selector) {
-		console.warn(
-			"Selector is empty in selector clause",
-			selectorExp,
-			element
-		);
-		return;
-	}
-
-	return () => {
-		const target = document.querySelector(selector);
-		if (!target) {
-			console.warn(`Target element not found for selector: ${selector}`);
-			return;
-		}
-
-		const content = fn?.(element.props);
-		if (content == null) return; // Skip if null or undefined
-
-		let nodes: Node[];
-		if (typeof content === "string") {
-			const temp = document.createElement("div");
-			temp.innerHTML = content;
-			nodes = Array.from(temp.childNodes);
-		} else if (content instanceof Node) {
-			nodes = [content];
-		} else if (content instanceof NodeList || Array.isArray(content)) {
-			nodes = Array.from(content as NodeList | Node[]);
-		} else {
-			const textNode = document.createTextNode(String(content));
-			nodes = [textNode];
-		}
-
-		switch (method) {
-			case "replace":
-				target.replaceChildren(...nodes);
-				break;
-			case "append":
-				target.append(...nodes);
-				break;
-			case "prepend":
-				target.prepend(...nodes);
-				break;
-			case "swap":
-				if (target.parentNode) {
-					const fragment = document.createDocumentFragment();
-					fragment.append(...nodes);
-					target.parentNode.replaceChild(fragment, target);
-				}
-				break;
-			default:
-				console.warn(`Unknown insertion method: ${method}`, element);
-		}
-	};
-};
-
 export class RegEl {
 	private static _registry = new WeakMap<Element, RegEl>();
-	private readonly _cachedContent: RegisterableEl | null = null;
-	private _show?: State<unknown>;
-	private _each?: State<unknown[]>;
 	public props: Props = {};
 
-	constructor(private _element: RegisterableEl) {
-		this._cachedContent = _element.cloneNode(true) as RegisterableEl;
+	static register(element: RegisterableEl) {
+		const rl = RegEl._registry.get(element);
+		if (rl) return rl;
+		return new RegEl(element);
+	}
 
-		const bindExps = new Map<string, CtxFunction[]>();
-		const eventExps = new Map<string, CtxFunction[]>();
-		const exps = new Map<string, CtxFunction[]>();
+	constructor(private _element: RegisterableEl) {
+		const exps = new Map<
+			Attr,
+			{
+				bind?: CtxFunction;
+				sync?: CtxFunction;
+				isEventHandler?: boolean;
+				isNodeEditor?: boolean;
+			}
+		>();
 
 		// Traverse ancestors to find inherited props
 		let parent = _element.parentElement;
 		while (parent) {
-			for (const [key, state] of Object.entries(
-				RegEl._registry.get(parent)?.props ?? {}
-			))
+			const rl = RegEl._registry.get(parent);
+			if (!rl) break;
+
+			for (const [key, state] of Object.entries(rl.props))
 				this.props[key] = state;
 			parent = parent.parentElement;
 		}
 
-		// Get State props, set up expression funcs
-		for (const [attr, value] of Object.entries(_element.dataset)) {
-			const expTarget = /^(bind|sync)\./.test(attr)
-				? bindExps
-				: attr.startsWith("on")
-				? eventExps
+		// Loop through attributes to set bind/sync
+		for (const attr of Array.from(_element.attributes)) {
+			if (!attr.value.startsWith("${")) {
+				const [bindResult, syncResult] =
+					_element
+						.getAttribute(attr.name)
+						?.split(">>")
+						.map((val) =>
+							evaluateExpression(
+								val.replaceAll(/(^\$\{|\}$)/g, "")
+							)
+						) ?? [];
+
+				for (const [sync, { fn, stateRefs }] of [
+					[false, bindResult ?? {}] as [
+						boolean,
+						Partial<ExpressionResult>
+					],
+					[true, syncResult ?? {}] as [
+						boolean,
+						Partial<ExpressionResult>
+					],
+				]) {
+					if (fn) {
+						if (!exps.has(attr)) exps.set(attr, {});
+						const Exp = exps.get(attr)!;
+						const isEventHandler = attr.name.startsWith("on");
+
+						Exp[sync || isEventHandler ? "sync" : "bind"] = fn;
+						Exp.isEventHandler = isEventHandler;
+					}
+					for (const { name, state } of [...(stateRefs ?? [])])
+						this.props[name] ??= state;
+				}
+			}
+		}
+
+		// Handle prop bindings
+		for (const [attr, { bind, sync, isEventHandler }] of exps.entries()) {
+			const bindState = bind
+				? State._createComputed(() => bind(this.props))
 				: null;
 
-			if (!expTarget && !attrs.includes(attr)) continue;
-
-			let expressions = value?.split(">>")?.slice(0, 2) ?? [];
-			let selectorExp: string | undefined;
-			const fns: CtxFunction[] = [];
-			const states: State<unknown>[] = [];
-
-			const isSync = attr.startsWith("sync.");
-			const isTarget = attr.startsWith("target.");
-
-			if (!(isSync || isTarget) && expressions.at(1)) {
-				_warnOnExtraClause(attr, _element);
-				expressions.pop();
-			}
-
-			for (const i of [0, 1]) {
-				const exp = expressions[i];
-
-				if (i === 0 || !isTarget) {
-					const { fn, stateRefs } = evaluateExpression(exp);
-					fns.push(fn);
-					for (const { name, state } of [...stateRefs]) {
-						this.props[name] = state;
-						states.push(state);
-					}
-				} else {
-					const selectorFn = exp
-						? _handleSelectorInsert(exp?.trim(), this, fns.at(1))
-						: null;
-					if (selectorFn) fns.push(selectorFn);
-				}
-			}
-
-			if (expTarget) {
-				const attrName = attr.replace(/(bind|sync)\./, "");
-				expTarget.set(attrName, fns);
-			} else exps.set(attr, fns);
-		}
-
-		// Handle property bindings
-		for (const [prop, [bind, sync]] of bindExps) {
-			if (bind) {
-				const propState = computed(() => bind(this.props));
-
-				if (sync)
-					propState.effect(() => {
-						const newValue = propState.value;
-						_setProp(_element, prop, newValue);
-
-						sync?.(this.props);
-					});
-
-				// Initial sync
-				_setProp(_element, prop, propState.value);
-			}
-		}
-
-		// Handle event listeners
-		for (const [eventAttr, fns] of eventExps) {
-			const eventType = eventAttr.replace(/^on/, ""); // onclick -> click
-			const [handler, processor, inserter] = fns;
-
-			if (handler) {
-				_element.addEventListener(eventType, (event) => {
-					const result = handler(this.props);
-
-					// If there's a processor, run it
-					if (processor) {
-						processor({ ...this.props, event, $result: result });
-					}
-
-					// If there's an inserter (DOM manipulation), run it
-					if (inserter) {
-						inserter({ ...this.props, event, $result: result });
-					}
+			if (bindState) {
+				bindState.effect(() => {
+					this._setProp(attr.name, bindState!.value);
+					sync?.(this.props);
 				});
 			}
-		}
 
-		// Warn if multiconditional
-		if (
-			[exps.has("if"), exps.has("elseif"), exps.has("else")].filter(
-				Boolean
-			).length > 1
-		) {
-			console.warn(
-				`Multiple conditional attributes; using "if"`,
-				_element
-			);
-		}
-
-		// Handle conditional rendering
-		const isElse = _element.hasAttribute("data-else");
-
-		// Warn if orphan conditionals
-		if (exps.has("elseif") || isElse) {
-			let hasConditionalChain = false;
-			let prev = _element.previousElementSibling;
-			while (
-				prev &&
-				(prev.hasAttribute("data-if") ||
-					prev.hasAttribute("data-elseif"))
-			) {
-				hasConditionalChain = true;
-				if (prev.hasAttribute("data-if")) break;
-				prev = prev.previousElementSibling;
-			}
-			if (!hasConditionalChain) {
-				console.warn(
-					`Orphan ${
-						isElse ? "data-else" : "data-elseif"
-					} without preceding data-if`,
-					_element
+			if (isEventHandler) {
+				_element.removeAttribute(attr.name);
+				_element.addEventListener(attr.name.replace(/^on/, ""), () =>
+					sync?.(this.props)
 				);
 			}
 		}
 
-		const isElseOrElseIf = exps.has("elseif") ?? isElse;
-
-		const [conditional, processing] =
-			exps.get("if") ?? exps.get("elseif") ?? isElse
-				? [(_props: Props) => true, null]
-				: [];
-		let showState: State<unknown> | undefined;
-
-		// Warn if processing clause
-		if (processing) _warnOnExtraClause("conditional", _element);
-
-		if (conditional) {
-			if (isElseOrElseIf) {
-				const conditionalStates: State<unknown>[] = [];
-
-				// Find all previous conditional elements (data-if, data-elseif) in this conditional chain
-				let cond = _element.previousElementSibling;
-				const hasIf = _element.dataset?.["if"];
-				while (cond) {
-					if (hasIf || isElseOrElseIf) {
-						const show = RegEl._registry.get(
-							cond as Element
-						)?._show;
-						if (show) {
-							conditionalStates.unshift(show);
-						}
-					} else break;
-					if (hasIf) break;
-					cond = cond.previousElementSibling;
-				}
-
-				showState = computed(
-					() =>
-						!conditionalStates.some((s) => s.value) &&
-						conditional(this.props)
-				);
-			} else showState = computed(() => conditional(this.props));
+		// Traverse children and handle registration and text node bindings
+		for (const child of Array.from(_element.childNodes)) {
+			this.traverseNodes(child);
 		}
-
-		// Handle async operations
-		const awaitExp = exps.get("await");
-		const thenExp = exps.get("then");
-		const catchExp = exps.get("catch");
-
-		if (awaitExp) {
-			// Warn if processing clause for await
-			if (awaitExp.at(1)) _warnOnExtraClause("await", _element);
-
-			const awaitState = computed(async () => {
-				try {
-					const promise = awaitExp.at(0)?.(this.props);
-					if (promise instanceof Promise) {
-						return await promise;
-					}
-					return promise;
-				} catch (error) {
-					throw error;
-				}
-			});
-
-			awaitState.effect(async () => {
-				try {
-					const result = await awaitState.value;
-
-					// Execute data-then if available
-					if (thenExp) {
-						if (thenExp.at(1)) _warnOnExtraClause("then", _element);
-
-						// Pass the resolved value as a prop
-						const thenProps = { ...this.props, $result: result };
-						thenExp.at(0)?.(thenProps);
-					}
-				} catch (error) {
-					// Execute data-catch if available
-					if (catchExp) {
-						if (catchExp.at(1))
-							_warnOnExtraClause("catch", _element);
-
-						// Pass the error as a prop
-						const catchProps = { ...this.props, $error: error };
-						catchExp.at(0)?.(catchProps);
-					} else {
-						console.error(
-							"Unhandled async error:",
-							error,
-							_element
-						);
-					}
-				}
-			});
-		} else if (thenExp || catchExp) {
-			if (thenExp && !awaitExp) {
-				console.warn("data-then found without data-await", _element);
-			}
-			if (catchExp && !awaitExp && !thenExp) {
-				console.warn(
-					"data-catch found without data-await or data-then",
-					_element
-				);
-			}
-		}
-
-		// Set up main display states
-		this._show = showState;
-		const showHide = () => {
-			this._element.style.display = this._show?.value ? "" : "none";
-		};
-		this._show?.effect(showHide);
-		showHide();
-
-		this._each = computed(
-			() => exps.get("each")?.[0]?.(this.props) ?? []
-		) as State<unknown[]>;
-
-		this._each?.effect(() => {
-			const intendedCount = this._each!.value.length ?? 0;
-
-			let highestValidIndex = -1;
-			let removeMode = false;
-
-			for (const child of Array.from(_element.childNodes)) {
-				if (
-					child.nodeType === Node.COMMENT_NODE &&
-					child.textContent?.startsWith("#MFENDI-")
-				) {
-					const index = +(child.textContent.split("-")[1] ?? -1);
-
-					if (index >= 0) {
-						if (index >= intendedCount) {
-							// Mark removal mode and remove this comment
-							removeMode = true;
-							_element.removeChild(child);
-						} else {
-							// This is a valid comment node
-							highestValidIndex = Math.max(
-								highestValidIndex,
-								index
-							);
-						}
-					}
-				} else if (removeMode) {
-					_element.removeChild(child);
-				}
-			}
-
-			// Add missing items if needed
-			if (highestValidIndex < intendedCount - 1) {
-				const fragment = document.createDocumentFragment();
-
-				for (let i = highestValidIndex + 1; i < intendedCount; i++) {
-					if (this._cachedContent) {
-						const clonedElement = this._cachedContent.cloneNode(
-							true
-						) as RegisterableEl;
-						new RegEl(fragment.appendChild(clonedElement)); // Register the new element
-					}
-
-					const commentNode = document.createComment(`#MFENDI-${i}`);
-					fragment.appendChild(commentNode);
-				}
-
-				_element.appendChild(fragment);
-			}
-		});
 
 		RegEl._registry.set(_element, this);
+	}
+
+	_setProp = (prop: string, value: unknown) => {
+		if (prop in this._element) (this._element as any)[prop] = value;
+		else this._element.setAttribute(prop, String(value ?? ""));
+	};
+
+	traverseNodes(node: Node) {
+		// Stop traversal if this is an element with data-mf-ignore
+		if (node.nodeType === Node.ELEMENT_NODE) {
+			const element = node as HTMLElement;
+			if (element.hasAttribute("data-mf-ignore")) {
+				return;
+			}
+
+			const hasBindingAttribute = Array.from(element.attributes).some(
+				(attr) => attr.value.startsWith("${")
+			);
+
+			if (hasBindingAttribute) {
+				new RegEl(element);
+				return;
+			}
+		} else if (node.nodeType === Node.TEXT_NODE) {
+			const originalText = (node as Text).textContent || "";
+
+			// Find all ${...} blocks in the text
+			const matches = originalText.match(/\$\{[^}]*\}/g);
+
+			if (matches) {
+				const expressions = new Map<
+					string,
+					{ state: State<unknown>; expression: string }
+				>();
+
+				for (const match of matches) {
+					const expression = match.slice(2, -1);
+					const { stateRefs, fn } = evaluateExpression(expression);
+
+					for (const { name, state } of stateRefs) {
+						this.props[name] ??= state;
+					}
+
+					if (fn) {
+						const state = State._createComputed(() =>
+							fn(this.props)
+						);
+						expressions.set(match, { state, expression });
+					}
+				}
+
+				const updateText = () => {
+					let newText = originalText;
+					for (const [match, { state }] of expressions ?? []) {
+						newText = newText.replaceAll(
+							match,
+							String(state.value)
+						);
+					}
+					node.textContent = newText;
+				};
+
+				// Set up effects for all states
+				for (const { state } of expressions.values()) {
+					state.effect(updateText);
+				}
+			}
+		}
+
+		// Recursively traverse children
+		for (const child of Array.from(node.childNodes)) {
+			this.traverseNodes(child);
+		}
 	}
 }
