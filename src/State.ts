@@ -17,15 +17,149 @@ let isFlushingEffects = false;
 let pendingEffects = new Set<Effect>();
 let batchDepth = 0;
 let isProcessingBatch = false;
-const reusableTriggeredSet = new Set<Effect>();
-const ROOT_KEY = Symbol("root");
+
+// Global reactive system for path-based tracking
+const granularEffects = new Map<string, Set<Effect>>();
+const effectToLastPath = new Map<Effect, string>();
+
+const track = (path: string) => {
+	const effect = currentEffect;
+	if (!effect) return;
+
+	effectToLastPath.set(effect, path);
+
+	let effects = granularEffects.get(path);
+	if (!effects) {
+		effects = new Set();
+		granularEffects.set(path, effects);
+	}
+
+	if (!effects.has(effect)) {
+		effects.add(effect);
+
+		effect._addDependency(() => {
+			effects!.delete(effect);
+			if (effects!.size === 0) {
+				granularEffects.delete(path);
+			}
+			effectToLastPath.delete(effect);
+		});
+	}
+};
+
+const triggerEffects = (path: string) => {
+	const effects = granularEffects.get(path);
+	if (effects) {
+		for (const effect of effects) {
+			if (effect._isActive && effectToLastPath.get(effect) === path) {
+				pendingEffects.add(effect);
+			}
+		}
+	}
+	processEffectsBatched();
+};
+
+const createProxy = (obj: any, pathPrefix = ""): any => {
+	if (!obj || typeof obj !== "object") return obj;
+
+	// Don't proxy Promises - they have special native methods that break with proxies
+	if (obj instanceof Promise) return obj;
+
+	const commonProxyHandler: ProxyHandler<any> = {
+		get: (target, key) => {
+			const fullPath = pathPrefix
+				? `${pathPrefix}.${String(key)}`
+				: String(key);
+			track(fullPath);
+			const value = Reflect.get(target, key);
+			return typeof value === "object" && value !== null
+				? createProxy(value, fullPath)
+				: value;
+		},
+		set: (target, key, value) => {
+			const fullPath = pathPrefix
+				? `${pathPrefix}.${String(key)}`
+				: String(key);
+			if (isEqual(Reflect.get(target, key), value)) return true;
+			const result = Reflect.set(target, key, value);
+			if (result) {
+				triggerEffects(fullPath);
+			}
+			return result;
+		},
+	};
+
+	if (obj instanceof Map || obj instanceof Set) {
+		return new Proxy(obj, {
+			...commonProxyHandler,
+			get: (target, key) => {
+				const fullPath = pathPrefix
+					? `${pathPrefix}.${String(key)}`
+					: String(key);
+				track(fullPath);
+				const value = Reflect.get(target, key);
+				return typeof value === "function"
+					? value.bind(target)
+					: typeof value === "object" && value !== null
+					? createProxy(value, fullPath)
+					: value;
+			},
+		});
+	}
+
+	if (Array.isArray(obj)) {
+		return new Proxy(obj, {
+			...commonProxyHandler,
+			get: (target, key) => {
+				const fullPath = pathPrefix
+					? `${pathPrefix}.${String(key)}`
+					: String(key);
+				track(fullPath);
+				const value = Reflect.get(target, key);
+				if (
+					typeof value === "function" &&
+					arrayMutatingMethods.has(key as string)
+				) {
+					return (...args: any[]) => {
+						const oldLength = target.length;
+						const result = (value as Function).apply(target, args);
+						const newLength = target.length;
+
+						if (oldLength !== newLength) {
+							triggerEffects(`${fullPath}.length`);
+						} else {
+							for (let i = 0; i < target.length; i++) {
+								triggerEffects(`${fullPath}.${i}`);
+							}
+						}
+						return result;
+					};
+				}
+				return typeof value === "object" && value !== null
+					? createProxy(value, fullPath)
+					: value;
+			},
+		});
+	}
+
+	return new Proxy(obj, commonProxyHandler);
+};
+
+export const createReactiveStore = <T extends object>(initialState: T): T => {
+	return createProxy(initialState) as T;
+};
+
+export const effect = (fn: () => void) => {
+	const effect = new Effect(fn);
+	effect._runImmediate();
+	return () => effect._stop();
+};
 
 const flushPendingEffects = () => {
 	if (isFlushingEffects || pendingEffects.size === 0) return;
 	isFlushingEffects = true;
 	try {
 		while (pendingEffects.size > 0 && batchDepth < 10) {
-			``;
 			batchDepth++;
 			const effectsToRun = new Set(pendingEffects);
 			pendingEffects.clear();
@@ -102,33 +236,51 @@ class Effect {
 	}
 }
 
+// Global reactive store for all State instances
+const globalReactiveStore = createReactiveStore({} as Record<string, any>);
+
+// State class that uses the new reactive store internally
 export class State<T = unknown> {
 	public name: string;
-	#value: T;
-	#reactive: T;
+	#path: string;
 	#derive?: () => T;
-	#granularEffects = new Map<string | symbol, Set<Effect>>();
-	#effectToLastKey = new Map<Effect, string | symbol>();
 
 	static #reg = new Map<string, State<unknown>>();
 
 	constructor(value: T, name?: string) {
 		this.name = name ?? Math.random().toString(36).substring(2, 15);
-		this.#value = value;
-		this.#reactive = this._createProxy(value);
+		this.#path = `states.${this.name}`;
+
+		// Ensure states object exists
+		if (!(globalReactiveStore as any).states) {
+			(globalReactiveStore as any).states = {};
+		}
+
+		// Initialize value in global store
+		if (!(this.name in (globalReactiveStore as any).states)) {
+			(globalReactiveStore as any).states[this.name] = value;
+		}
+
+		State.#reg.set(this.name, this);
 	}
 
-	// Internal constructor for computed states
 	static _createComputed<T>(deriveFn: () => T, name?: string): State<T> {
-		const state = Object.create(State.prototype) as State<T>;
-		state.name = name ?? Math.random().toString(36).substring(2, 15);
+		const state = new State(undefined as any, name);
 		state.#derive = deriveFn;
-		state.#value = undefined as any;
-		state.#reactive = undefined as any;
-		state.#granularEffects = new Map<string | symbol, Set<Effect>>();
-		state.#effectToLastKey = new Map<Effect, string | symbol>();
 
-		new Effect(() => state._updateValue())._runImmediate();
+		// Set up computed reactivity using the new effect system
+		effect(() => {
+			const newValue = deriveFn();
+			if (
+				!isEqual(
+					(globalReactiveStore as any).states[state.name],
+					newValue
+				)
+			) {
+				(globalReactiveStore as any).states[state.name] = newValue;
+			}
+		});
+
 		return state;
 	}
 
@@ -140,219 +292,25 @@ export class State<T = unknown> {
 		this.#reg.set(name, state);
 	}
 
-	_updateValue() {
-		const newValue = this.#derive ? this.#derive() : this.#value;
-		if (!isEqual(this.#value, newValue)) {
-			const oldValue = this.#value;
-			this.#value = newValue;
-			this.#reactive = this._createProxy(newValue);
-			this._triggerEffects(oldValue);
-		}
-	}
-
-	_createProxy(
-		obj: T,
-		parent?: { state: State<any>; key: string | symbol }
-	): T {
-		if (!obj || typeof obj !== "object") return obj;
-
-		// Don't proxy Promises - they have special native methods that break with proxies
-		if (obj instanceof Promise) return obj;
-
-		const commonProxyHandler: ProxyHandler<any> = {
-			get: (target, key) => {
-				this._track(key);
-				const value = Reflect.get(target, key);
-				return typeof value === "object" && value !== null
-					? this._createProxy(value as any, { state: this, key })
-					: value;
-			},
-			set: (target, key, value) => {
-				if (isEqual(Reflect.get(target, key), value)) return true;
-				const result = Reflect.set(target, key, value);
-				if (result) {
-					this._triggerGranularEffects(key);
-					if (parent) {
-						parent.state._triggerGranularEffects(parent.key);
-					}
-					processEffectsBatched();
-				}
-				return result;
-			},
-		};
-
-		if (obj instanceof Map || obj instanceof Set) {
-			return new Proxy(obj, {
-				...commonProxyHandler,
-				get: (target, key) => {
-					this._track(key);
-					const value = Reflect.get(target, key);
-					return typeof value === "function"
-						? value.bind(target)
-						: typeof value === "object" && value !== null
-						? this._createProxy(value as any, { state: this, key })
-						: value;
-				},
-			}) as T;
-		}
-
-		if (Array.isArray(obj)) {
-			return new Proxy(obj, {
-				...commonProxyHandler,
-				get: (target, key) => {
-					this._track(key); // Track both direct index access and method access
-					const value = Reflect.get(target, key);
-					if (
-						typeof value === "function" &&
-						arrayMutatingMethods.has(key as string)
-					) {
-						return (...args: any[]) => {
-							const oldLength = target.length;
-							const result = (value as Function).apply(
-								target,
-								args
-							);
-							const newLength = target.length;
-							const effectsToProcess = new Set<Effect>();
-
-							if (oldLength !== newLength) {
-								if (this.#granularEffects.get("length"))
-									for (const effect of this.#granularEffects.get(
-										"length"
-									)!)
-										if (effect._isActive)
-											effectsToProcess.add(effect);
-							} else {
-								for (let i = 0; i < target.length; i++) {
-									const effects = this.#granularEffects.get(
-										String(i)
-									);
-									if (effects)
-										for (const effect of effects)
-											if (effect._isActive)
-												effectsToProcess.add(effect);
-								}
-							}
-
-							if (parent) {
-								const effects =
-									parent.state.#granularEffects.get(
-										parent.key
-									);
-								if (effects)
-									for (const effect of effects)
-										if (effect._isActive)
-											effectsToProcess.add(effect);
-							}
-
-							effectsToProcess.forEach((effect) =>
-								pendingEffects.add(effect)
-							);
-							processEffectsBatched();
-							return result;
-						};
-					}
-					return typeof value === "object" && value !== null
-						? this._createProxy(value as any, { state: this, key })
-						: value;
-				},
-			}) as T;
-		}
-
-		return new Proxy(obj, commonProxyHandler) as T;
-	}
-
-	_track(key: string | symbol) {
-		const effect = currentEffect;
-		if (!effect) return;
-
-		this.#effectToLastKey.set(effect, key);
-
-		let granularEffects = this.#granularEffects.get(key);
-		if (!granularEffects) {
-			granularEffects = new Set();
-			this.#granularEffects.set(key, granularEffects);
-		}
-
-		if (!granularEffects.has(effect)) {
-			granularEffects.add(effect);
-
-			effect._addDependency(() => {
-				granularEffects!.delete(effect);
-				if (granularEffects!.size === 0) {
-					this.#granularEffects.delete(key);
-				}
-				this.#effectToLastKey.delete(effect);
-			});
-		}
-	}
-
-	_triggerEffects(oldValue: T) {
-		reusableTriggeredSet.clear();
-
-		// Only trigger granular effects for properties that have actually changed
-		if (
-			oldValue &&
-			typeof oldValue === "object" &&
-			this.#value &&
-			typeof this.#value === "object"
-		) {
-			for (const [key, effects] of this.#granularEffects.entries()) {
-				const oldPropValue = (oldValue as any)[key];
-				const newPropValue = (this.#value as any)[key];
-				if (!isEqual(oldPropValue, newPropValue)) {
-					for (const effect of effects)
-						if (effect._isActive) reusableTriggeredSet.add(effect);
-				}
-			}
-		} else {
-			// If not objects, trigger all granular effects
-			for (const effects of this.#granularEffects.values()) {
-				for (const effect of effects)
-					if (effect._isActive) reusableTriggeredSet.add(effect);
-			}
-		}
-
-		for (const effect of reusableTriggeredSet) pendingEffects.add(effect);
-		processEffectsBatched();
-	}
-
-	_triggerGranularEffects(key: string | symbol) {
-		const granularEffects = this.#granularEffects.get(key);
-		if (granularEffects) {
-			granularEffects.forEach((effect) => {
-				if (
-					effect._isActive &&
-					this.#effectToLastKey.get(effect) === key
-				) {
-					pendingEffects.add(effect);
-				}
-			});
-		}
-		processEffectsBatched();
-	}
-
 	get value(): T {
-		const effect = currentEffect;
-		if (effect) {
-			this._track(ROOT_KEY);
-		}
-		return this.#reactive;
+		// Track access to this specific state path
+		track(this.#path);
+		return (globalReactiveStore as any).states?.[this.name];
 	}
 
 	set value(newValue: T) {
-		if (this.#derive) return;
-		if (!isEqual(this.#value, newValue)) {
-			const oldValue = this.#value;
-			this.#value = newValue;
-			this.#reactive = this._createProxy(newValue);
-			this._triggerEffects(oldValue);
+		if (this.#derive) return; // Can't set computed states
+
+		// Ensure states object exists
+		if (!(globalReactiveStore as any).states) {
+			(globalReactiveStore as any).states = {};
 		}
+
+		// Set value in global store, which will trigger path-based effects
+		(globalReactiveStore as any).states[this.name] = newValue;
 	}
 
 	effect(fn: () => void) {
-		const effect = new Effect(fn);
-		effect._runImmediate();
-		return () => effect._stop();
+		return effect(fn);
 	}
 }
