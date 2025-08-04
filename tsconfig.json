@@ -23,6 +23,11 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true
 	},
-	"include": ["src/**/*", "performance-analyzer.js"],
+	"include": [
+		"src/**/*",
+		"performance-analyzer.js",
+		"alt/template.ts",
+		"alt/tidbits.ts"
+	],
 	"exclude": ["src/tests/**/*"]
 }

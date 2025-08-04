@@ -18,6 +18,7 @@ let pendingEffects = new Set<Effect>();
 let batchDepth = 0;
 let isProcessingBatch = false;
 const reusableTriggeredSet = new Set<Effect>();
+const ROOT_KEY = Symbol("root");
 
 const flushPendingEffects = () => {
 	if (isFlushingEffects || pendingEffects.size === 0) return;
@@ -106,9 +107,7 @@ export class State<T = unknown> {
 	#value: T;
 	#reactive: T;
 	#derive?: () => T;
-	#effects = new Set<Effect>();
 	#granularEffects = new Map<string | symbol, Set<Effect>>();
-	#effectToKeys = new Map<Effect, Set<string | symbol>>();
 	#effectToLastKey = new Map<Effect, string | symbol>();
 
 	static #reg = new Map<string, State<unknown>>();
@@ -126,9 +125,7 @@ export class State<T = unknown> {
 		state.#derive = deriveFn;
 		state.#value = undefined as any;
 		state.#reactive = undefined as any;
-		state.#effects = new Set<Effect>();
 		state.#granularEffects = new Map<string | symbol, Set<Effect>>();
-		state.#effectToKeys = new Map<Effect, Set<string | symbol>>();
 		state.#effectToLastKey = new Map<Effect, string | symbol>();
 
 		new Effect(() => state._updateValue())._runImmediate();
@@ -177,28 +174,6 @@ export class State<T = unknown> {
 					this._triggerGranularEffects(key);
 					if (parent) {
 						parent.state._triggerGranularEffects(parent.key);
-					} else {
-						// Trigger general effects (those that watch the whole state)
-						// but exclude those that are already handled by granular effects
-						const granularEffectsForKey =
-							this.#granularEffects.get(key);
-						for (const effect of this.#effects) {
-							if (effect._isActive) {
-								const effectKeys =
-									this.#effectToKeys.get(effect);
-								// Only trigger if this effect has no granular dependencies
-								// (i.e., it's a pure general effect watching the whole state)
-								if (!effectKeys || effectKeys.size === 0) {
-									// Skip if already triggered by granular effects
-									if (
-										!granularEffectsForKey ||
-										!granularEffectsForKey.has(effect)
-									) {
-										pendingEffects.add(effect);
-									}
-								}
-							}
-						}
 					}
 					processEffectsBatched();
 				}
@@ -247,9 +222,6 @@ export class State<T = unknown> {
 									)!)
 										if (effect._isActive)
 											effectsToProcess.add(effect);
-								for (const effect of this.#effects)
-									if (effect._isActive)
-										effectsToProcess.add(effect);
 							} else {
 								for (let i = 0; i < target.length; i++) {
 									const effects = this.#granularEffects.get(
@@ -260,9 +232,6 @@ export class State<T = unknown> {
 											if (effect._isActive)
 												effectsToProcess.add(effect);
 								}
-								for (const effect of this.#effects)
-									if (effect._isActive)
-										effectsToProcess.add(effect);
 							}
 
 							if (parent) {
@@ -308,21 +277,8 @@ export class State<T = unknown> {
 		if (!granularEffects.has(effect)) {
 			granularEffects.add(effect);
 
-			if (!this.#effectToKeys.has(effect)) {
-				this.#effectToKeys.set(effect, new Set());
-			}
-			this.#effectToKeys.get(effect)!.add(key);
-
 			effect._addDependency(() => {
 				granularEffects!.delete(effect);
-				const keySet = this.#effectToKeys.get(effect);
-				if (keySet) {
-					keySet.delete(key);
-					if (keySet.size === 0) {
-						this.#effectToKeys.delete(effect);
-						this.#effects.delete(effect); // Only delete from _effects if no more granular keys
-					}
-				}
 				if (granularEffects!.size === 0) {
 					this.#granularEffects.delete(key);
 				}
@@ -333,8 +289,6 @@ export class State<T = unknown> {
 
 	_triggerEffects(oldValue: T) {
 		reusableTriggeredSet.clear();
-		for (const effect of this.#effects)
-			if (effect._isActive) reusableTriggeredSet.add(effect);
 
 		// Only trigger granular effects for properties that have actually changed
 		if (
@@ -359,7 +313,7 @@ export class State<T = unknown> {
 			}
 		}
 
-		reusableTriggeredSet.forEach((effect) => pendingEffects.add(effect));
+		for (const effect of reusableTriggeredSet) pendingEffects.add(effect);
 		processEffectsBatched();
 	}
 
@@ -380,9 +334,8 @@ export class State<T = unknown> {
 
 	get value(): T {
 		const effect = currentEffect;
-		if (effect && !this.#effects.has(effect)) {
-			this.#effects.add(effect);
-			effect._addDependency(() => this.#effects.delete(effect));
+		if (effect) {
+			this._track(ROOT_KEY);
 		}
 		return this.#reactive;
 	}

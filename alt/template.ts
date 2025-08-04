@@ -1,13 +1,14 @@
+import { State } from "../src/State";
 
 const _warnOnExtraClause = (attr: string, element: RegisterableEl) => {
 	console.warn(`Ignoring processing clause on ${attr}`, element);
 };
 
 export class RegEl {
-	private static _registry = new WeakMap<Element, RegEl>();
-	private readonly _cachedContent: RegisterableEl | null = null;
-	private _show?: State<unknown>;
-	private _each?: State<unknown[]>;
+	static #registry = new WeakMap<Element, RegEl>();
+	readonly _cachedContent: RegisterableEl | null = null;
+	_show?: State<unknown>;
+	_each?: State<unknown[]>;
 	public props: Props = {};
 
 	constructor(private _element: RegisterableEl) {
@@ -65,7 +66,7 @@ if (conditional) {
 		const hasIf = _element.dataset?.["if"];
 		while (cond) {
 			if (hasIf || isElseOrElseIf) {
-				const show = RegEl._registry.get(cond as Element)?._show;
+				const show = RegEl.#registry.get(cond as Element)?._show;
 				if (show) {
 					conditionalStates.unshift(show);
 				}
