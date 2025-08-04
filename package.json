@@ -7,12 +7,14 @@
 		"dev": "vite",
 		"build": "vite build",
 		"test": "vitest --run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"analyze": "npx vite-bundle-analyzer"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
 		"@types/node": "^22.10.1",
 		"jsdom": "^26.1.0",
+		"rollup-plugin-visualizer": "^6.0.3",
 		"typescript": "~5.7.2",
 		"vite": "^6.0.3",
 		"vitest": "^3.1.2"

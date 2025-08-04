@@ -1,7 +1,9 @@
 import { defineConfig } from "vite";
+import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
 	build: {
+		target: "ES2022",
 		minify: true,
 		lib: {
 			entry: "src/index.ts",
@@ -9,6 +11,13 @@ export default defineConfig({
 			fileName: (format) => `manifold.${format}.js`,
 		},
 		rollupOptions: {
+			plugins: [
+				visualizer({
+					filename: "dist/stats.html",
+					open: false,
+					gzipSize: true,
+				}),
+			],
 			output: {
 				compact: true,
 			},

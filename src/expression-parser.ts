@@ -1,4 +1,4 @@
-import { CtxFunction, RegEl } from "./registry";
+import { CtxFunction } from "./registry";
 import { State } from "./State";
 
 export interface StateReference {
@@ -7,19 +7,11 @@ export interface StateReference {
 }
 
 const ID = "[a-zA-Z_$][a-zA-Z0-9_$]*",
-	PROP = `${ID}(?:\\.${ID})*`,
-	STATE_PROP = `@${PROP}`,
+	PROP = `${ID}(?:[.\\[]\\w*\\]?)*`,
 	PROP_RE = new RegExp(`^${PROP}$`),
-	VALUE = `(?:${STATE_PROP}|${PROP}|-?\\d+(?:\\.\\d+)?|["'][^"']*["']|\`[^\`]*\`|true|false|null|undefined)`,
-	COMP_RE = new RegExp(`^(${VALUE})\\s*(===|!==|>=|<=|==|!=|>|<)\\s*(.+)$`),
-	NUM_RE = /^-?\d+(\.\d+)?$/,
-	STR_RE = /^(['"`])(.*?)\1$/,
-	OR_RE = /^(.+?)\s*\|\|\s*(.+)$/,
-	NULL_RE = /^(.+?)\s*\?\?\s*(.+)$/,
-	AND_RE = /^(.+?)\s*&&\s*(.+)$/,
-	NEG_RE = /^!\s*(.+)$/;
-
-export const STATE_RE = new RegExp(STATE_PROP, "g");
+	VALUE = `(?:${PROP}|-?\\d+(?:\\.\\d+)?|["'][^"']*["']|true|false|null|undefined)`,
+	COMP_RE = new RegExp(`^(${VALUE})\\s*(===|!==|>=|<=|>|<)\\s*(.+)$`),
+	STATE_RE = new RegExp(PROP, "g");
 
 const LITERALS: Record<string, unknown> = {
 	true: true,
@@ -28,124 +20,16 @@ const LITERALS: Record<string, unknown> = {
 	undefined: undefined,
 };
 
-const _handleSelectorInsert = (
-	selectorExp: string,
-	element: RegEl,
-	fn?: CtxFunction
-): CtxFunction | undefined => {
-	const parts = selectorExp.split("(");
-	const selector = parts.pop()?.replace(")", "").trim();
-	const method = parts.at(0)?.trim() ?? "replace";
+const parseArithmetic = (expr: string) => {
+	// Simple left-to-right parsing for basic arithmetic
+	const match = expr.match(/^(.+?)\s*([+\-*/])\s*(.+)$/);
+	if (!match || !match[1] || !match[3]) return null;
 
-	if (!selector) {
-		console.warn(
-			"Selector is empty in selector clause",
-			selectorExp,
-			element
-		);
-		return;
-	}
+	const [, left, op, right] = match;
+	// Don't treat leading minus as arithmetic operator
+	if (op === "-" && left.trim() === "") return null;
 
-	return () => {
-		const target = document.querySelector(selector);
-		if (!target) {
-			console.warn(`Target element not found for selector: ${selector}`);
-			return;
-		}
-
-		const content = fn?.(element.props);
-		if (content == null) return; // Skip if null or undefined
-
-		let nodes: Node[];
-		if (typeof content === "string") {
-			const temp = document.createElement("div");
-			temp.innerHTML = content;
-			nodes = Array.from(temp.childNodes);
-		} else if (content instanceof Node) {
-			nodes = [content];
-		} else if (content instanceof NodeList || Array.isArray(content)) {
-			nodes = Array.from(content as NodeList | Node[]);
-		} else {
-			const textNode = document.createTextNode(String(content));
-			nodes = [textNode];
-		}
-
-		switch (method) {
-			case "replace":
-				target.replaceChildren(...nodes);
-				break;
-			case "append":
-				target.append(...nodes);
-				break;
-			case "prepend":
-				target.prepend(...nodes);
-				break;
-			case "swap":
-				if (target.parentNode) {
-					const fragment = document.createDocumentFragment();
-					fragment.append(...nodes);
-					target.parentNode.replaceChild(fragment, target);
-				}
-				break;
-			default:
-				console.warn(`Unknown insertion method: ${method}`, element);
-		}
-	};
-};
-
-const parseArithmetic = (
-	expr: string
-): { left: string; op: string; right: string } | null => {
-	let depth = 0,
-		ternaryDepth = 0,
-		lastOpIndex = -1,
-		lastOp = "",
-		inQuotes = false,
-		quoteChar = "";
-
-	for (let i = expr.length - 1; i >= 0; i--) {
-		const char = expr[i];
-		if (!char) continue;
-
-		if (
-			(char === '"' || char === "'") &&
-			(i === 0 || expr[i - 1] !== "\\")
-		) {
-			if (!inQuotes) {
-				inQuotes = true;
-				quoteChar = char;
-			} else if (char === quoteChar) {
-				inQuotes = false;
-				quoteChar = "";
-			}
-			continue;
-		}
-
-		if (inQuotes) continue;
-
-		if (char === ")") depth++;
-		else if (char === "(") depth--;
-		else if (char === "?") ternaryDepth++;
-		else if (char === ":") ternaryDepth--;
-		else if (depth === 0 && ternaryDepth === 0 && /[+\-*/]/.test(char)) {
-			if (char === "-") {
-				const prevPart = expr.slice(0, i).trim();
-				if (prevPart === "" || /[+\-*/=<>!&|?:]$/.test(prevPart)) {
-					continue;
-				}
-			}
-			lastOpIndex = i;
-			lastOp = char;
-			break;
-		}
-	}
-	return lastOpIndex === -1
-		? null
-		: {
-				left: expr.slice(0, lastOpIndex).trim(),
-				op: lastOp,
-				right: expr.slice(lastOpIndex + 1).trim(),
-		  };
+	return { left: left.trim(), op, right: right.trim() };
 };
 
 const parseTernary = (expr: string) => {
@@ -178,26 +62,59 @@ export const evalProp = (
 	expr: string,
 	ctx: Record<string, unknown> = {}
 ): unknown => {
-	const parts = expr.split(".");
+	// Split on both dots and bracket notation
+	const parts = expr.split(/[.\[\]]/).filter(Boolean);
 	let result: unknown = ctx;
 	for (const part of parts) {
 		if (result == null) return undefined;
-		result = (result as any)[part];
+		// Handle numeric indices
+		if (/^\d+$/.test(part)) {
+			result = (result as any)[parseInt(part, 10)];
+		} else {
+			result = (result as any)[part];
+		}
 	}
 	return result;
+};
+
+export const setProp = (
+	expr: string,
+	value: unknown,
+	ctx: Record<string, unknown> = {}
+): void => {
+	const parts = expr.split(/[.\[\]]/).filter(Boolean);
+	let target: any = ctx;
+
+	// Navigate to the parent object
+	for (let i = 0; i < parts.length - 1; i++) {
+		const part = parts[i];
+		if (target == null || !part) return;
+
+		if (/^\d+$/.test(part)) {
+			target = target[parseInt(part, 10)];
+		} else {
+			target = target[part];
+		}
+	}
+
+	// Set the final property
+	const finalPart = parts[parts.length - 1];
+	if (target != null && finalPart != null) {
+		if (/^\d+$/.test(finalPart)) {
+			target[parseInt(finalPart, 10)] = value;
+		} else {
+			target[finalPart] = value;
+		}
+	}
 };
 
 const parseValue = (val: string, ctx: Record<string, unknown>): any => {
 	val = val.trim();
 	if (val in LITERALS) return LITERALS[val];
-	if (NUM_RE.test(val)) return parseFloat(val);
-	const strMatch = val.match(STR_RE);
+	if (/^-?\d+\.?\d*$/.test(val)) return parseFloat(val);
+	const strMatch = val.match(/^(['"`])(.*?)\1$/);
 	if (strMatch) return strMatch[2];
 
-	if (val.startsWith("@")) {
-		const propName = val.slice(1);
-		if (PROP_RE.test(propName)) return evalProp(propName, ctx);
-	}
 	if (PROP_RE.test(val)) return evalProp(val, ctx);
 	return val;
 };
@@ -214,53 +131,35 @@ const evalComparison = (
 	const leftVal = parseValue(left, ctx);
 	const rightVal = parseValue(rightTrimmed, ctx);
 
-	switch (op) {
-		case "===":
-			return leftVal === rightVal;
-		case "!==":
-			return leftVal !== rightVal;
-		case "==":
-			return leftVal == rightVal;
-		case "!=":
-			return leftVal != rightVal;
-		case ">=":
-			return leftVal >= rightVal;
-		case "<=":
-			return leftVal <= rightVal;
-		case ">":
-			return leftVal > rightVal;
-		case "<":
-			return leftVal < rightVal;
-		default:
-			return false;
-	}
+	return op === "===" && leftVal === rightVal
+		? true
+		: op === "!=="
+		? leftVal !== rightVal
+		: op === ">="
+		? leftVal >= rightVal
+		: op === "<="
+		? leftVal <= rightVal
+		: op === ">"
+		? leftVal > rightVal
+		: op === "<"
+		? leftVal < rightVal
+		: false;
 };
 
 export interface ExpressionResult {
 	fn: CtxFunction;
-	stateRefs: Set<{ name: string; state: State<unknown> }>;
+	_stateRefs: Set<{ name: string; state: State<unknown> }>;
+	isAssignment?: boolean;
+	assignTarget?: string;
 }
 
 const createStateReference = (stateExpr: string): StateReference | null => {
-	// Handle aliasing: @myState.prop as alias
-	const aliasMatch = stateExpr.match(
-		/^(@[^\s]+)\s+as\s+([a-zA-Z_$][a-zA-Z0-9_$]*)$/
-	);
-	let actualStateExpr = stateExpr;
-	let aliasName: string | null = null;
-
-	if (aliasMatch && aliasMatch[1] && aliasMatch[2]) {
-		actualStateExpr = aliasMatch[1];
-		aliasName = aliasMatch[2];
-	}
-
-	const propName = actualStateExpr.slice(1); // Remove @ prefix
-	const parts = propName.split(".");
+	const parts = stateExpr.split(/[.\[\]]/).filter(Boolean);
 	const baseStateName = parts[0];
 
 	if (!baseStateName) return null;
 
-	const baseState = State.get(baseStateName);
+	const baseState = State.get(parts[0]);
 	if (!baseState) return null;
 
 	let resultState: State<unknown>;
@@ -282,31 +181,38 @@ const createStateReference = (stateExpr: string): StateReference | null => {
 	}
 
 	return {
-		name: aliasName || defaultName,
+		name: defaultName,
 		state: resultState,
 	};
 };
 
 export const evaluateExpression = (expr?: string): ExpressionResult => {
 	expr = expr?.trim();
-	if (!expr) return { fn: () => undefined, stateRefs: new Set() };
+	if (!expr) return { fn: () => undefined, _stateRefs: new Set() };
 
-	// Check if this is a JavaScript arrow function or regular function
-	// Only detect if it doesn't contain @ symbols (which would make it a Manifold expression)
-	if (
-		!expr.includes("@") &&
-		(expr.includes("=>") || expr.startsWith("function"))
-	) {
-		try {
-			const func = new Function("return (" + expr + ")")();
-			// For regular properties, call the function and return its result
-			return { fn: () => func(), stateRefs: new Set() };
-		} catch (error) {
-			// Fall through to normal expression evaluation if JavaScript function creation fails
-		}
+	// Check for assignment expressions first
+	const assignMatch = expr.match(
+		/^([a-zA-Z_$][\w]*(?:\.[\w]+|\[\d+\])*)\s*=\s*(.+)$/
+	);
+	if (assignMatch && assignMatch[1] && assignMatch[2]) {
+		const target = assignMatch[1];
+		const valueExpr = assignMatch[2];
+		const valueResult = evaluateExpression(valueExpr);
+
+		return {
+			fn: (ctx) => {
+				const value = valueResult.fn(ctx);
+				setProp(target, value, ctx);
+				return value;
+			},
+			_stateRefs: valueResult._stateRefs,
+			isAssignment: true,
+			assignTarget: target,
+		};
 	}
 
 	const stateRefs = new Set<{ name: string; state: State<unknown> }>();
+	// Find all potential state references (valid identifiers)
 	Array.from(expr.matchAll(STATE_RE)).forEach((match) => {
 		const stateRef = createStateReference(match[0]);
 		if (stateRef) stateRefs.add(stateRef);
@@ -317,40 +223,15 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 		additionalRefs: Set<{ name: string; state: State<unknown> }> = new Set()
 	): ExpressionResult => ({
 		fn,
-		stateRefs: new Set([...stateRefs, ...additionalRefs]),
+		_stateRefs: new Set([...stateRefs, ...additionalRefs]),
 	});
 
 	if (expr in LITERALS) return createResult(() => LITERALS[expr]);
-	if (NUM_RE.test(expr)) return createResult(() => parseFloat(expr));
+	if (/^-?\d+\.?\d*$/.test(expr)) return createResult(() => parseFloat(expr));
 
-	const strMatch = expr.match(STR_RE);
+	const strMatch = expr.match(/^(['"`])(.*?)\1$/);
 	if (strMatch?.[2] !== undefined) {
-		const strValue = strMatch[2];
-		if (!strValue.includes("@")) {
-			let inQuotes = false,
-				quoteChar = "",
-				hasOperatorsOutsideQuotes = false;
-			for (let i = 0; i < expr.length; i++) {
-				const char = expr[i];
-				if (!char) continue;
-				if (
-					(char === '"' || char === "'") &&
-					(i === 0 || expr[i - 1] !== "\\")
-				) {
-					if (!inQuotes) {
-						inQuotes = true;
-						quoteChar = char;
-					} else if (char === quoteChar) {
-						inQuotes = false;
-						quoteChar = "";
-					}
-				} else if (!inQuotes && /[+\-*/]/.test(char)) {
-					hasOperatorsOutsideQuotes = true;
-					break;
-				}
-			}
-			if (!hasOperatorsOutsideQuotes) return createResult(() => strValue);
-		}
+		return createResult(() => strMatch[2]);
 	}
 
 	if (expr.startsWith("(") && expr.endsWith(")")) {
@@ -374,41 +255,33 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 		const fv = evaluateExpression(ternary._falseValue);
 		return createResult(
 			(ctx) => (cond.fn(ctx) ? tv.fn(ctx) : fv.fn(ctx)),
-			new Set([...cond.stateRefs, ...tv.stateRefs, ...fv.stateRefs])
+			new Set([...cond._stateRefs, ...tv._stateRefs, ...fv._stateRefs])
 		);
 	}
 
-	const negMatch = expr.match(NEG_RE);
+	const negMatch = expr.match(/^!\s*(.+)$/);
 	if (negMatch?.[1]) {
 		const inner = evaluateExpression(negMatch[1]);
-		return createResult((ctx) => !inner.fn(ctx), inner.stateRefs);
+		return createResult((ctx) => !inner.fn(ctx), inner._stateRefs);
 	}
 
-	if (expr.startsWith("-") && expr.length > 1) {
-		const inner = evaluateExpression(expr.slice(1).trim());
-		return createResult((ctx) => {
-			const val = inner.fn(ctx);
-			return typeof val === "number" ? -val : undefined;
-		}, inner.stateRefs);
-	}
-
-	const orMatch = expr.match(OR_RE);
+	const orMatch = expr.match(/^(.+?)\s*\|\|\s*(.+)$/);
 	if (orMatch?.[1] && orMatch[2]) {
 		const left = evaluateExpression(orMatch[1]);
 		const right = evaluateExpression(orMatch[2]);
 		return createResult(
 			(ctx) => left.fn(ctx) || right.fn(ctx),
-			new Set([...left.stateRefs, ...right.stateRefs])
+			new Set([...left._stateRefs, ...right._stateRefs])
 		);
 	}
 
-	const andMatch = expr.match(AND_RE);
+	const andMatch = expr.match(/^(.+?)\s*&&\s*(.+)$/);
 	if (andMatch?.[1] && andMatch[2]) {
 		const left = evaluateExpression(andMatch[1]);
 		const right = evaluateExpression(andMatch[2]);
 		return createResult(
 			(ctx) => left.fn(ctx) && right.fn(ctx),
-			new Set([...left.stateRefs, ...right.stateRefs])
+			new Set([...left._stateRefs, ...right._stateRefs])
 		);
 	}
 
@@ -432,50 +305,32 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 				typeof leftVal === "number" &&
 				typeof rightVal === "number"
 			) {
-				switch (op) {
-					case "-":
-						return leftVal - rightVal;
-					case "*":
-						return leftVal * rightVal;
-					case "/":
-						return leftVal / rightVal;
-					default:
-						return undefined;
-				}
+				return op === "-"
+					? leftVal - rightVal
+					: op === "*"
+					? leftVal * rightVal
+					: op === "/"
+					? rightVal !== 0
+						? leftVal / rightVal
+						: undefined
+					: undefined;
 			}
 			return undefined;
-		}, new Set([...left.stateRefs, ...right.stateRefs]));
-	}
-
-	const nullMatch = expr.match(NULL_RE);
-	if (nullMatch?.[1] && nullMatch[2]) {
-		const left = evaluateExpression(nullMatch[1]);
-		const right = evaluateExpression(nullMatch[2]);
-		return createResult(
-			(ctx) => left.fn(ctx) ?? right.fn(ctx),
-			new Set([...left.stateRefs, ...right.stateRefs])
-		);
-	}
-
-	if (expr.startsWith("@")) {
-		const propName = expr.slice(1);
-		if (PROP_RE.test(propName))
-			return createResult((ctx) => evalProp(propName, ctx));
+		}, new Set([...left._stateRefs, ...right._stateRefs]));
 	}
 
 	if (PROP_RE.test(expr)) {
 		return createResult((ctx) => {
-			// First try to resolve from context (props)
+			// Try to resolve from context first
 			let result = evalProp(expr, ctx);
 
-			// If not found in context, try State registry
+			// If not found, try State registry
 			if (result === undefined) {
-				const parts = expr.split(".");
+				const parts = expr.split(/[.\[\]]/).filter(Boolean);
 				const baseStateName = parts[0];
 				if (baseStateName) {
 					const baseState = State.get(baseStateName);
 					if (baseState) {
-						// Add state to context for property evaluation
 						const stateContext = {
 							...ctx,
 							[baseStateName]: baseState.value,
@@ -485,12 +340,7 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 				}
 			}
 
-			// Fallback to literal string if still undefined and it's a simple identifier
-			return result === undefined &&
-				!expr.includes(".") &&
-				Object.keys(ctx ?? {}).length === 0
-				? expr
-				: result;
+			return result !== undefined ? result : expr;
 		});
 	}
 
@@ -505,12 +355,9 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 		return createResult(() => expr);
 	}
 
-	if (expr.includes(".") || /^[a-zA-Z_$]/.test(expr)) {
-		return createResult((ctx) => {
-			const result = evalProp(expr, ctx);
-			return result !== undefined ? result : expr;
-		});
-	}
-
-	return createResult(() => expr);
+	// Final fallback for properties and other expressions
+	return createResult((ctx) => {
+		const result = evalProp(expr, ctx);
+		return result !== undefined ? result : expr;
+	});
 };

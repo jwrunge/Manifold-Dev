@@ -1,4 +1,4 @@
-import { evaluateExpression, ExpressionResult } from "./expression-parser";
+import { evaluateExpression } from "./expression-parser";
 import { State } from "./State";
 
 type RegisterableEl = HTMLElement | SVGElement | MathMLElement;
@@ -6,173 +6,156 @@ type Props = Record<string, unknown>;
 export type CtxFunction = (props?: Props) => unknown;
 
 export class RegEl {
-	private static _registry = new WeakMap<Element, RegEl>();
+	static #registry = new WeakMap<Element, RegEl>();
+	#element: RegisterableEl;
 	public props: Props = {};
 
 	static register(element: RegisterableEl) {
-		const rl = RegEl._registry.get(element);
-		if (rl) return rl;
-		return new RegEl(element);
+		return RegEl.#registry.get(element) ?? new RegEl(element);
 	}
 
-	constructor(private _element: RegisterableEl) {
-		const exps = new Map<
-			Attr,
-			{
-				bind?: CtxFunction;
-				sync?: CtxFunction;
-				isEventHandler?: boolean;
-				isNodeEditor?: boolean;
-			}
-		>();
+	constructor(element: RegisterableEl) {
+		this.#element = element;
 
 		// Traverse ancestors to find inherited props
-		let parent = _element.parentElement;
+		let parent = this.#element.parentElement;
 		while (parent) {
-			const rl = RegEl._registry.get(parent);
+			const rl = RegEl.#registry.get(parent);
 			if (!rl) break;
-
-			for (const [key, state] of Object.entries(rl.props))
-				this.props[key] = state;
+			Object.assign(this.props, rl.props);
 			parent = parent.parentElement;
 		}
 
-		// Loop through attributes to set bind/sync
-		for (const attr of Array.from(_element.attributes)) {
-			if (!attr.value.startsWith("${")) {
-				const [bindResult, syncResult] =
-					_element
-						.getAttribute(attr.name)
-						?.split(">>")
-						.map((val) =>
-							evaluateExpression(
-								val.replaceAll(/(^\$\{|\}$)/g, "")
-							)
-						) ?? [];
+		// Process attributes
+		const pendingEffects: (() => void)[] = [];
 
-				for (const [sync, { fn, stateRefs }] of [
-					[false, bindResult ?? {}] as [
-						boolean,
-						Partial<ExpressionResult>
-					],
-					[true, syncResult ?? {}] as [
-						boolean,
-						Partial<ExpressionResult>
-					],
-				]) {
-					if (fn) {
-						if (!exps.has(attr)) exps.set(attr, {});
-						const Exp = exps.get(attr)!;
-						const isEventHandler = attr.name.startsWith("on");
+		for (const attr of element.attributes) {
+			if (!attr.value.startsWith("${")) continue;
 
-						Exp[sync || isEventHandler ? "sync" : "bind"] = fn;
-						Exp.isEventHandler = isEventHandler;
-					}
-					for (const { name, state } of [...(stateRefs ?? [])])
-						this.props[name] ??= state;
+			const parts = attr.value.split(">>");
+			const isEventHandler = attr.name.startsWith("on");
+			let bindFn: CtxFunction | undefined;
+			let syncFn: CtxFunction | undefined;
+
+			// Process bind and sync expressions
+			for (const [i, part] of parts.entries()) {
+				const { fn, _stateRefs } = evaluateExpression(
+					part.slice(2, -1)
+				); // Remove ${ and }
+
+				if (fn) {
+					if (i === 0) bindFn = fn;
+					else syncFn = fn;
+				}
+
+				for (const { name, state } of _stateRefs) {
+					this.props[name] ??= state;
 				}
 			}
-		}
 
-		// Handle prop bindings
-		for (const [attr, { bind, sync, isEventHandler }] of exps.entries()) {
-			const bindState = bind
-				? State._createComputed(() => bind(this.props))
-				: null;
-
-			if (bindState) {
-				bindState.effect(() => {
-					this._setProp(attr.name, bindState!.value);
-					sync?.(this.props);
+			// Create effects
+			if (bindFn) {
+				const bindState = State._createComputed(() =>
+					bindFn!(this.props)
+				);
+				pendingEffects.push(() => {
+					bindState.effect(() => {
+						this.#setProp(attr.name, bindState.value);
+						syncFn?.(this.props);
+					});
 				});
 			}
 
-			if (isEventHandler) {
-				_element.removeAttribute(attr.name);
-				_element.addEventListener(attr.name.replace(/^on/, ""), () =>
-					sync?.(this.props)
+			if (isEventHandler && syncFn) {
+				element.removeAttribute(attr.name);
+				element.addEventListener(attr.name.slice(2), () =>
+					syncFn!(this.props)
 				);
 			}
 		}
 
-		// Traverse children and handle registration and text node bindings
-		for (const child of Array.from(_element.childNodes)) {
-			this.traverseNodes(child);
-		}
-
-		RegEl._registry.set(_element, this);
+		for (const effect of pendingEffects) effect();
+		this.#traverseNodes(element);
+		RegEl.#registry.set(element, this);
 	}
 
-	_setProp = (prop: string, value: unknown) => {
-		if (prop in this._element) (this._element as any)[prop] = value;
-		else this._element.setAttribute(prop, String(value ?? ""));
+	#setProp = (prop: string, value: unknown) => {
+		if (prop in this.#element) (this.#element as any)[prop] = value;
+		else this.#element.setAttribute(prop, String(value ?? ""));
 	};
 
-	traverseNodes(node: Node) {
-		// Stop traversal if this is an element with data-mf-ignore
-		if (node.nodeType === Node.ELEMENT_NODE) {
-			const element = node as HTMLElement;
-			if (element.hasAttribute("data-mf-ignore")) {
-				return;
-			}
+	#traverseNodes(node: Node) {
+		const stack = [node];
 
-			const hasBindingAttribute = Array.from(element.attributes).some(
-				(attr) => attr.value.startsWith("${")
-			);
+		while (stack.length) {
+			const current = stack.pop()!;
 
-			if (hasBindingAttribute) {
-				new RegEl(element);
-				return;
-			}
-		} else if (node.nodeType === Node.TEXT_NODE) {
-			const originalText = (node as Text).textContent || "";
+			if (current.nodeType === Node.ELEMENT_NODE) {
+				const element = current as HTMLElement;
 
-			// Find all ${...} blocks in the text
-			const matches = originalText.match(/\$\{[^}]*\}/g);
+				if (element.hasAttribute("data-mf-ignore")) continue;
 
-			if (matches) {
-				const expressions = new Map<
-					string,
-					{ state: State<unknown>; expression: string }
-				>();
-
-				for (const match of matches) {
-					const expression = match.slice(2, -1);
-					const { stateRefs, fn } = evaluateExpression(expression);
-
-					for (const { name, state } of stateRefs) {
-						this.props[name] ??= state;
-					}
-
-					if (fn) {
-						const state = State._createComputed(() =>
-							fn(this.props)
-						);
-						expressions.set(match, { state, expression });
+				// Check for binding attributes
+				let hasBinding = false;
+				for (const attr of element.attributes) {
+					if (attr.value.startsWith("${")) {
+						hasBinding = true;
+						break;
 					}
 				}
 
-				const updateText = () => {
+				if (hasBinding) {
+					new RegEl(element);
+					continue;
+				}
+
+				// Add children to stack (in reverse order to maintain traversal order)
+				for (let i = element.childNodes.length - 1; i >= 0; i--) {
+					stack.push(element.childNodes[i]!);
+				}
+			} else if (current.nodeType === Node.TEXT_NODE) {
+				this.#processTextNode(current as Text);
+			} else {
+				for (let i = current.childNodes.length - 1; i >= 0; i--) {
+					stack.push(current.childNodes[i]!);
+				}
+			}
+		}
+	}
+
+	#processTextNode(textNode: Text) {
+		const originalText = textNode.textContent || "";
+		const expressions: Array<[string, State<unknown>]> = [];
+
+		let match;
+		while ((match = /\$\{[^}]*\}/g.exec(originalText))) {
+			const { _stateRefs, fn } = evaluateExpression(
+				match[0].slice(2, -1)
+			);
+
+			for (const { name, state } of _stateRefs) {
+				this.props[name] ??= state;
+			}
+
+			if (fn) {
+				const state = State._createComputed(() => fn(this.props));
+				expressions.push([match[0], state]);
+			}
+		}
+
+		if (expressions.length) {
+			for (const [, state] of expressions) {
+				state.effect(() => {
 					let newText = originalText;
-					for (const [match, { state }] of expressions ?? []) {
+					for (const [matchStr, state] of expressions) {
 						newText = newText.replaceAll(
-							match,
+							matchStr,
 							String(state.value)
 						);
 					}
-					node.textContent = newText;
-				};
-
-				// Set up effects for all states
-				for (const { state } of expressions.values()) {
-					state.effect(updateText);
-				}
+					textNode.textContent = newText;
+				});
 			}
-		}
-
-		// Recursively traverse children
-		for (const child of Array.from(node.childNodes)) {
-			this.traverseNodes(child);
 		}
 	}
 }

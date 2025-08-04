@@ -1,29 +1,27 @@
-const _toUint8Array = (b: ArrayBuffer | ArrayBufferView): Uint8Array =>
-	b instanceof ArrayBuffer
-		? new Uint8Array(b)
-		: new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+const _ab = ArrayBuffer,
+	_u8 = Uint8Array,
+	_rf = Reflect,
+	_obj = Object,
+	_objStr = "object";
 
-const compareArrays = (a: any[], b: any[], c: WeakSet<any>): boolean => {
-	if (a.length !== b.length) return false;
-	for (let i = 0; i < a.length; i++)
-		if (!isEqual(a[i], b[i], c)) return false;
-	return true;
-};
-
-export const isEqual = (a: any, b: any, c = new WeakSet()): boolean => {
+const _isEqual = (a: any, b: any, c = new WeakSet()): boolean => {
 	if (a === b) return true;
-	if (!(a && b && typeof a == "object" && typeof b == "object")) return false;
+	if (!(a && b && typeof a == _objStr && typeof b == _objStr)) return false;
 	if (c.has(a) || c.has(b)) return a === b;
 
 	c.add(a);
 	c.add(b);
 
-	const isA = a instanceof ArrayBuffer || ArrayBuffer.isView(a);
-	const isB = b instanceof ArrayBuffer || ArrayBuffer.isView(b);
+	const [isA, isB] = [a, b].map((c) => c instanceof _ab || _ab.isView(c));
 
 	if (isA || isB) {
 		if (isA !== isB) return false; // If one is buffer, other must be too
-		const [vA, vB] = [_toUint8Array(a), _toUint8Array(b)];
+		const [vA, vB] = [a, b].map((c) =>
+			c instanceof _ab
+				? new _u8(b)
+				: new _u8(b.buffer, b.byteOffset, b.byteLength)
+		) as [Uint8Array, Uint8Array];
+
 		if (vA.length !== vB.length) return false;
 		for (let i = 0; i < vA.length; i++) if (vA[i] !== vB[i]) return false;
 		return true;
@@ -31,48 +29,38 @@ export const isEqual = (a: any, b: any, c = new WeakSet()): boolean => {
 
 	const cA = a.constructor;
 	const cB = b.constructor;
-	if (cA !== cB && !(cA === Object && cB === Object)) return false;
+	if (cA !== cB && !(cA === _obj && cB === _obj)) return false;
 
-	switch (cA) {
-		case Array:
-			return compareArrays(a, b, c);
-		case Date:
-			return a.getTime() === b.getTime();
-		case Map:
-			if (a.size !== b.size) return false;
-			for (const [k, vA] of a.entries())
-				if (!b.has(k) || !isEqual(vA, b.get(k), c)) return false;
-			return true;
-		case Set:
-			if (a.size !== b.size) return false;
-			for (const i of a) {
-				let f = false;
-				for (const iB of b) {
-					if (isEqual(i, iB, c)) {
-						f = true;
-						break;
-					}
-				}
-				if (!f) return false;
-			}
-			return true;
-		case URL:
-			return a.href === b.href;
-		case URLSearchParams:
-			return a.toString() === b.toString();
-		case Error:
-			return a.name === b.name && a.message === b.message;
-		case RegExp:
-			return a.source === b.source && a.flags === b.flags;
-		case Function:
-		case Promise:
-			return false;
-	}
+	const ret =
+		cA === Array
+			? a.length === b.length &&
+			  (() => {
+					for (let i = 0; i < a.length; i++)
+						if (!_isEqual(a[i], b[i], c)) return false;
+					return true;
+			  })()
+			: cA === Date
+			? a.getTime() === b.getTime()
+			: cA === Map
+			? a.size === b.size &&
+			  [...a.entries()].every(
+					([k, vA]) => b.has(k) && _isEqual(vA, b.get(k), c)
+			  )
+			: cA === Set
+			? a.size === b.size &&
+			  [...a].every((i) => [...b].some((iB) => _isEqual(i, iB, c)))
+			: cA === Function || cA === Promise
+			? false
+			: null;
 
-	const kA = Reflect.ownKeys(a);
-	if (kA.length !== Reflect.ownKeys(b).length) return false;
+	if (ret !== null) return ret;
+
+	const kA = _rf.ownKeys(a);
+	if (kA.length !== _rf.ownKeys(b).length) return false;
 
 	for (const k of kA)
-		if (!Reflect.has(b, k) || !isEqual(a[k], b[k], c)) return false;
+		if (!_rf.has(b, k) || !_isEqual(a[k], b[k], c)) return false;
 	return true;
 };
+
+export default _isEqual;
