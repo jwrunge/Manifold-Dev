@@ -1,5 +1,6 @@
 import { State, createReactiveStore, effect } from "./State";
 import { RegEl } from "./registry";
+import _isEqual from "./equality";
 
 const register = (container: HTMLElement | SVGElement | MathMLElement) =>
 	RegEl.register(container);

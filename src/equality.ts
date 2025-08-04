@@ -1,6 +1,9 @@
 const _objStr = "object",
 	_constructor = "constructor";
 
+// Optimized equality for common UI use cases
+// Note: Map/Set contents are not deeply compared - this is intentional
+// for granular reactivity (UI updates happen via property access, not container equality)
 const _isEqual = (a: any, b: any): boolean => {
 	if (a === b) return true;
 	if (!(a && b && typeof a == _objStr && typeof b == _objStr)) return false;

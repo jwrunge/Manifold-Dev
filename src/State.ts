@@ -2,18 +2,18 @@ import _isEqual from "./equality";
 
 let currentEffect: Effect | null = null;
 let pending = new Set<Effect>();
-const deps = new Map<string, Set<Effect>>();
+const _deps = new Map<string, Set<Effect>>();
 
 const track = (path: string) => {
 	if (!currentEffect) return;
-	let set = deps.get(path);
-	if (!set) deps.set(path, (set = new Set()));
+	let set = _deps.get(path);
+	if (!set) _deps.set(path, (set = new Set()));
 	set.add(currentEffect);
-	currentEffect.deps.add(() => set!.delete(currentEffect!));
+	currentEffect._deps.add(() => set!.delete(currentEffect!));
 };
 
 const trigger = (path: string) => {
-	const set = deps.get(path);
+	const set = _deps.get(path);
 	if (!set) return;
 	for (const effect of set) pending.add(effect);
 	flush();
@@ -56,15 +56,15 @@ export const effect = (fn: () => void) => {
 };
 
 class Effect {
-	deps = new Set<() => void>();
+	_deps = new Set<() => void>();
 	active = true;
 
 	constructor(public fn: () => void) {}
 
 	run() {
 		if (!this.active) return;
-		this.deps.forEach((cleanup) => cleanup());
-		this.deps.clear();
+		this._deps.forEach((cleanup) => cleanup());
+		this._deps.clear();
 		const prev = currentEffect;
 		currentEffect = this;
 		try {
@@ -76,27 +76,27 @@ class Effect {
 
 	stop() {
 		this.active = false;
-		this.deps.forEach((cleanup) => cleanup());
-		this.deps.clear();
+		this._deps.forEach((cleanup) => cleanup());
+		this._deps.clear();
 	}
 }
 
 // Global reactive store for all State instances
-const globalStore = createReactiveStore({ states: {} } as {
-	states: Record<string, any>;
+const globalStore = createReactiveStore({ _states: {} } as {
+	_states: Record<string, any>;
 });
 
 // State class that uses the new reactive store internally
 export class State<T = unknown> {
-	public name: string;
+	public _name: string;
 	#derive?: () => T;
 
 	static #reg = new Map<string, State<unknown>>();
 
 	constructor(value: T, name?: string) {
-		this.name = name ?? Math.random().toString(36).substring(2, 15);
-		globalStore.states[this.name] = value;
-		State.#reg.set(this.name, this);
+		this._name = name ?? Math.random().toString(36).substring(2, 15);
+		globalStore._states[this._name] = value;
+		State.#reg.set(this._name, this);
 	}
 
 	static _createComputed<T>(deriveFn: () => T, name?: string): State<T> {
@@ -104,8 +104,8 @@ export class State<T = unknown> {
 		state.#derive = deriveFn;
 		effect(() => {
 			const newValue = deriveFn();
-			if (!_isEqual(globalStore.states[state.name], newValue)) {
-				globalStore.states[state.name] = newValue;
+			if (!_isEqual(globalStore._states[state._name], newValue)) {
+				globalStore._states[state._name] = newValue;
 			}
 		});
 		return state;
@@ -120,13 +120,13 @@ export class State<T = unknown> {
 	}
 
 	get value(): T {
-		track(`states.${this.name}`);
-		return globalStore.states[this.name];
+		track(`states.${this._name}`);
+		return globalStore._states[this._name];
 	}
 
 	set value(newValue: T) {
 		if (this.#derive) return;
-		globalStore.states[this.name] = newValue;
+		globalStore._states[this._name] = newValue;
 	}
 
 	effect(fn: () => void) {
