@@ -54,6 +54,12 @@ export const _effect = (fn: () => void) => {
 	return () => eff._stop();
 };
 
+export const effect = (fn: () => void) => {
+	const eff = new Effect(fn);
+	eff._run();
+	return () => eff._stop();
+};
+
 class Effect {
 	_deps = new Set<() => void>();
 	_active = true;
@@ -88,18 +94,18 @@ export class State<T = unknown> {
 	_name: string;
 	#derive?: () => T;
 
-	static #reg = new Map<string, State<unknown>>();
+	static #registry = new Map<string, State<unknown>>();
 
 	constructor(value: T, name?: string) {
 		this._name = name ?? Math.random().toString(36).substring(2, 15);
 		_globalStore._states[this._name] = value;
-		State.#reg.set(this._name, this);
+		State.#registry.set(this._name, this);
 	}
 
 	static _createComputed<T>(deriveFn: () => T, name?: string): State<T> {
 		const state = new State(undefined as any, name);
 		state.#derive = deriveFn;
-		_effect(() => {
+		effect(() => {
 			const newValue = deriveFn();
 			if (!_isEqual(_globalStore._states[state._name], newValue)) {
 				_globalStore._states[state._name] = newValue;
@@ -109,7 +115,9 @@ export class State<T = unknown> {
 	}
 
 	static get<T>(name?: string): State<T> | undefined {
-		return name ? (this.#reg.get(name) as State<T> | undefined) : undefined;
+		return name
+			? (this.#registry.get(name) as State<T> | undefined)
+			: undefined;
 	}
 
 	get value(): T {
@@ -123,6 +131,6 @@ export class State<T = unknown> {
 	}
 
 	effect(fn: () => void) {
-		return _effect(fn);
+		return effect(fn);
 	}
 }
