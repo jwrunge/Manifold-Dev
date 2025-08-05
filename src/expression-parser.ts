@@ -6,38 +6,27 @@ export interface StateReference {
 	_state: State<unknown>;
 }
 
-const ID = "[a-zA-Z_$][a-zA-Z0-9_$]*",
-	PROP = `${ID}(?:[.\\[]\\w*\\]?)*`,
-	PROP_RE = new RegExp(`^${PROP}$`),
-	VALUE = `(?:${PROP}|-?\\d+(?:\\.\\d+)?|["'][^"']*["']|true|false|null|undefined)`,
-	COMP_RE = new RegExp(`^(${VALUE})\\s*(===|!==|>=|<=|>|<)\\s*(.+)$`),
-	STATE_RE = new RegExp(PROP, "g"),
-	LITERALS: Record<string, unknown> = {
+const PROP_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*(?:[.\[][\w\]]*)*$/,
+	COMP_RE =
+		/^([a-zA-Z_$][\w.[\]]*|-?\d+(?:\.\d+)?|["'][^"']*["']|true|false|null|undefined)\s*(===|!==|>=|<=|>|<)\s*(.+)$/,
+	LITERALS: Record<string, any> = {
 		true: true,
 		false: false,
 		null: null,
-		undefined: undefined,
+		undefined,
 	},
-	_bool = Boolean,
-	_isNum = (val: unknown): boolean => typeof val === "number",
-	_isStr = (val: unknown): boolean => typeof val === "string",
-	_set = Set;
+	_isNum = (v: unknown) => typeof v === "number",
+	_isStr = (v: unknown) => typeof v === "string";
 
 export const _evalProp = (
 	expr: string,
 	ctx: Record<string, unknown> = {}
 ): unknown => {
-	// Split on both dots and bracket notation
-	const parts = expr.split(/[.\[\]]/).filter(_bool);
+	const parts = expr.split(/[.\[\]]/).filter(Boolean);
 	let result: unknown = ctx;
 	for (const part of parts) {
 		if (result == null) return undefined;
-		// Handle numeric indices
-		if (/^\d+$/.test(part)) {
-			result = (result as any)[+part];
-		} else {
-			result = (result as any)[part];
-		}
+		result = (result as any)[/^\d+$/.test(part) ? +part : part];
 	}
 	return result;
 };
@@ -47,41 +36,17 @@ export const _setProp = (
 	value: unknown,
 	ctx: Record<string, unknown> = {}
 ): void => {
-	const parts = expr.split(/[.\[\]]/).filter(_bool);
+	const parts = expr.split(/[.\[\]]/).filter(Boolean);
 	let target: any = ctx;
-
-	// Navigate to the parent object
 	for (let i = 0; i < parts.length - 1; i++) {
 		const part = parts[i];
 		if (target == null || !part) return;
-
-		if (/^\d+$/.test(part)) {
-			target = target[+part];
-		} else {
-			target = target[part];
-		}
+		target = target[/^\d+$/.test(part) ? +part : part];
 	}
-
-	// Set the final property
 	const finalPart = parts[parts.length - 1];
 	if (target != null && finalPart != null) {
-		if (/^\d+$/.test(finalPart)) {
-			target[+finalPart] = value;
-		} else {
-			target[finalPart] = value;
-		}
+		target[/^\d+$/.test(finalPart) ? +finalPart : finalPart] = value;
 	}
-};
-
-const _parseValue = (val: string, ctx: Record<string, unknown>): any => {
-	val = val.trim();
-	if (val in LITERALS) return LITERALS[val];
-	if (/^-?\d+\.?\d*$/.test(val)) return parseFloat(val);
-	const strMatch = val.match(/^(['"`])(.*?)\1$/);
-	if (strMatch) return strMatch[2];
-
-	if (PROP_RE.test(val)) return _evalProp(val, ctx);
-	return val;
 };
 
 export interface ExpressionResult {
@@ -89,15 +54,36 @@ export interface ExpressionResult {
 	_stateRefs: Set<{ _name: string; _state: State<unknown> }>;
 	_isAssignment?: boolean;
 	_assignTarget?: string;
+	_isArrowFunction?: boolean;
 }
 
 export const _evaluateExpression = (expr?: string): ExpressionResult => {
 	expr = expr?.trim();
-	if (!expr) return { fn: () => undefined, _stateRefs: new _set() };
+	if (!expr) return { fn: () => undefined, _stateRefs: new Set() };
+
+	// Check for arrow function expressions: (paramName) => body
+	const arrowMatch = expr.match(/^\s*\(\s*(\w+)\s*\)\s*=>\s*(.+)$/);
+	const paramName = arrowMatch?.[1];
+	const body = arrowMatch?.[2];
+
+	if (paramName && body) {
+		// Replace the parameter name with 'arg' in the body
+		const bodyResult = _evaluateExpression(
+			body.replace(new RegExp(`\\b${paramName}\\b`, "g"), "arg")
+		);
+
+		return {
+			fn: bodyResult.fn,
+			_stateRefs: bodyResult._stateRefs,
+			_isAssignment: bodyResult._isAssignment,
+			_assignTarget: bodyResult._assignTarget,
+			_isArrowFunction: true,
+		};
+	}
 
 	// Check for assignment expressions first
 	const assignMatch = expr.match(
-		/^([a-zA-Z_$][\w]*(?:\.[\w]+|\[\d+\])*)\s*=\s*(.+)$/
+		/^([a-zA-Z_$][\w]*(?:\.[\w]+|\[\d+\])*)\s*=\s*([^=].*)$/
 	);
 	if (assignMatch && assignMatch[1] && assignMatch[2]) {
 		const target = assignMatch[1];
@@ -116,39 +102,67 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 		};
 	}
 
-	const stateRefs = new _set<{ _name: string; _state: State<unknown> }>();
+	const stateRefs = new Set<{ _name: string; _state: State<unknown> }>();
 
-	// Find all potential state references (valid identifiers)
-	for (const match of expr.matchAll(STATE_RE)) {
-		const parts = match[0].split(/[.\[\]]/).filter(_bool);
-		const baseStateName = parts[0];
+	// Find all potential state references, excluding those inside string literals
+	const processedBaseStates = new Set<string>();
 
-		if (baseStateName) {
-			const baseState = State.get(parts[0]);
-			if (baseState) {
-				let resultState: State<unknown>;
-				let defaultName: string;
-
-				// If no properties, return the base state
-				if (parts.length === 1) {
-					resultState = baseState;
-					defaultName = baseStateName;
-				} else {
-					// If there are properties, create a computed state
-					const propertyPath = parts.slice(1);
-					defaultName = `${baseStateName}.${propertyPath.join(".")}`;
-					resultState = State._createComputed(() => {
-						return _evalProp(propertyPath.join("."), {
-							[baseStateName]: baseState.value,
-						});
-					}, defaultName);
+	for (const identifier of (() => {
+		const refs = new Set<string>();
+		let i = 0;
+		while (i < expr.length) {
+			const char = expr[i];
+			// Skip string literals
+			if (char === '"' || char === "'" || char === "`") {
+				const quote = char;
+				i++; // Skip opening quote
+				while (i < expr.length && expr[i] !== quote) {
+					if (expr[i] === "\\") i++; // Skip escaped characters
+					i++;
 				}
-
-				stateRefs.add({
-					_name: defaultName,
-					_state: resultState,
-				});
+				i++; // Skip closing quote
+				continue;
 			}
+			// Check for identifier at current position
+			if (char && /[a-zA-Z_$]/.test(char)) {
+				let identifier = "";
+				let j = i;
+				// Extract full identifier with property access
+				while (j < expr.length) {
+					const nextChar = expr[j];
+					if (!nextChar || !/[a-zA-Z0-9_$.\[\]]/.test(nextChar))
+						break;
+					identifier += nextChar;
+					j++;
+				}
+				// Get base identifier (before any dots or brackets)
+				const baseMatch = identifier.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*/);
+				if (baseMatch) {
+					const baseName = baseMatch[0];
+					// Exclude language keywords and built-ins
+					if (
+						!/^(true|false|null|undefined|arg|typeof|instanceof|new|function|class|let|const|var|if|else|for|while|do|switch|case|default|try|catch|finally|throw|return|break|continue)$/.test(
+							baseName
+						)
+					) {
+						refs.add(identifier);
+					}
+				}
+				i = j;
+			} else {
+				i++;
+			}
+		}
+		return refs;
+	})()) {
+		const baseStateName = identifier.split(/[.\[\]]/).filter(Boolean)[0];
+		if (baseStateName && !processedBaseStates.has(baseStateName)) {
+			processedBaseStates.add(baseStateName);
+			const baseState = State.get(baseStateName);
+			stateRefs.add({
+				_name: baseStateName,
+				_state: baseState || (null as any),
+			});
 		}
 	}
 
@@ -157,19 +171,48 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 		additionalRefs: Set<{
 			_name: string;
 			_state: State<unknown>;
-		}> = new _set()
-	): ExpressionResult => ({
-		fn,
-		_stateRefs: new _set([...stateRefs, ...additionalRefs]),
-	});
+		}> = new Set()
+	): ExpressionResult => {
+		// Deduplicate state refs by name
+		const nameSet = new Set<string>();
+		const dedupedRefs = new Set<{
+			_name: string;
+			_state: State<unknown>;
+		}>();
+
+		for (const ref of [...stateRefs, ...additionalRefs]) {
+			if (!nameSet.has(ref._name)) {
+				nameSet.add(ref._name);
+				dedupedRefs.add(ref);
+			}
+		}
+
+		return {
+			fn,
+			_stateRefs: dedupedRefs,
+			_isArrowFunction: false, // Default to false for non-arrow functions
+		};
+	};
 
 	if (expr in LITERALS) return _createResult(() => LITERALS[expr]);
 	if (/^-?\d+\.?\d*$/.test(expr))
 		return _createResult(() => parseFloat(expr));
 
+	// Only match simple string literals (no concatenation operators outside quotes)
 	const strMatch = expr.match(/^(['"`])(.*?)\1$/);
-	if (strMatch?.[2] !== undefined) {
-		return _createResult(() => strMatch[2]);
+	if (strMatch?.[2] !== undefined && strMatch[1]) {
+		// Check if this is truly a simple string literal by verifying the content
+		const content = strMatch[2];
+		const quote = strMatch[1];
+
+		// If the expression has more content after the closing quote, it's not a simple string
+		const quotePos = expr.indexOf(quote, 1);
+		if (quotePos !== -1) {
+			const afterQuote = expr.substring(quotePos + 1);
+			if (afterQuote.trim() === "") {
+				return _createResult(() => content);
+			}
+		}
 	}
 
 	if (expr.startsWith("(") && expr.endsWith(")")) {
@@ -204,55 +247,117 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 			}
 		}
 	}
-	const ternary =
-		qIdx === -1 || cIdx === -1
-			? null
-			: {
-					_condition: expr.slice(0, qIdx).trim(),
-					_trueValue: expr.slice(qIdx + 1, cIdx).trim(),
-					_falseValue: expr.slice(cIdx + 1).trim(),
-			  };
 
-	if (ternary) {
-		const cond = _evaluateExpression(ternary._condition);
-		const tv = _evaluateExpression(ternary._trueValue);
-		const fv = _evaluateExpression(ternary._falseValue);
+	if (qIdx !== -1 && cIdx !== -1) {
+		const cond = _evaluateExpression(expr.slice(0, qIdx).trim());
+		const tv = _evaluateExpression(expr.slice(qIdx + 1, cIdx).trim());
+		const fv = _evaluateExpression(expr.slice(cIdx + 1).trim());
 		return _createResult(
 			(ctx) => (cond.fn(ctx) ? tv.fn(ctx) : fv.fn(ctx)),
-			new _set([...cond._stateRefs, ...tv._stateRefs, ...fv._stateRefs])
+			new Set([...cond._stateRefs, ...tv._stateRefs, ...fv._stateRefs])
 		);
 	}
 
+	// Handle logical and arithmetic negation
 	const _negMatch = expr.match(/^!\s*(.+)$/);
 	if (_negMatch?.[1]) {
 		const inner = _evaluateExpression(_negMatch[1]);
 		return _createResult((ctx) => !inner.fn(ctx), inner._stateRefs);
 	}
 
-	const _orMatch = expr.match(/^(.+?)\s*\|\|\s*(.+)$/);
-	if (_orMatch?.[1] && _orMatch[2]) {
-		const left = _evaluateExpression(_orMatch[1]);
-		const right = _evaluateExpression(_orMatch[2]);
+	const _minusMatch = expr.match(/^-\s*(.+)$/);
+	if (_minusMatch?.[1]) {
+		const inner = _evaluateExpression(_minusMatch[1]);
+		return _createResult(
+			(ctx) => -(inner.fn(ctx) as number),
+			inner._stateRefs
+		);
+	}
+
+	// Logical operators
+	let match = expr.match(/^(.+?)\s*\|\|\s*(.+)$/);
+	if (match?.[1] && match[2]) {
+		const left = _evaluateExpression(match[1]);
+		const right = _evaluateExpression(match[2]);
 		return _createResult(
 			(ctx) => left.fn(ctx) || right.fn(ctx),
-			new _set([...left._stateRefs, ...right._stateRefs])
+			new Set([...left._stateRefs, ...right._stateRefs])
 		);
 	}
 
-	const _andMatch = expr.match(/^(.+?)\s*&&\s*(.+)$/);
-	if (_andMatch?.[1] && _andMatch[2]) {
-		const left = _evaluateExpression(_andMatch[1]);
-		const right = _evaluateExpression(_andMatch[2]);
+	match = expr.match(/^(.+?)\s*&&\s*(.+)$/);
+	if (match?.[1] && match[2]) {
+		const left = _evaluateExpression(match[1]);
+		const right = _evaluateExpression(match[2]);
 		return _createResult(
 			(ctx) => left.fn(ctx) && right.fn(ctx),
-			new _set([...left._stateRefs, ...right._stateRefs])
+			new Set([...left._stateRefs, ...right._stateRefs])
 		);
 	}
 
-	// Inline arithmetic parsing for single use - simple left-to-right parsing
-	const match = expr.match(/^(.+?)\s*([+\-*/])\s*(.+)$/);
-	if (match?.[1] && match[3]) {
-		const [, _left, _op, _right] = match;
+	// Inline arithmetic parsing for chained operations - handle left-to-right evaluation
+	// Find arithmetic operators outside parentheses, prioritizing lower precedence (+,-) over higher (*/%)
+	const findOperator = (operators: string[]) => {
+		let parenDepth = 0;
+		let inString = false;
+		let stringChar = "";
+
+		for (let i = expr.length - 1; i >= 0; i--) {
+			const char = expr[i];
+			if (!char) continue;
+
+			// Track string literals (scan backwards)
+			if (!inString && (char === '"' || char === "'" || char === "`")) {
+				inString = true;
+				stringChar = char;
+				continue;
+			}
+			if (
+				inString &&
+				char === stringChar &&
+				(i === 0 || expr[i - 1] !== "\\")
+			) {
+				inString = false;
+				stringChar = "";
+				continue;
+			}
+			if (inString) continue;
+
+			// Track parentheses depth (scanning backwards)
+			if (char === ")") parenDepth++;
+			else if (char === "(") parenDepth--;
+
+			// Look for operators at depth 0
+			if (parenDepth === 0 && operators.includes(char)) {
+				// Make sure it's not a leading minus for negative numbers
+				const prevChar = i > 0 ? expr[i - 1] : "";
+				const prev2Char = i > 1 ? expr[i - 2] : "";
+				// Check if this minus follows an operator (including spaced operators)
+				const isLeadingMinus =
+					char === "-" &&
+					(i === 0 ||
+						(prevChar && /[+\-*/]/.test(prevChar)) ||
+						(prevChar === " " &&
+							prev2Char &&
+							/[+\-*/]/.test(prev2Char)));
+
+				if (isLeadingMinus) continue;
+
+				const left = expr.substring(0, i).trim();
+				const right = expr.substring(i + 1).trim();
+				if (left && right) {
+					return [expr, left, char, right];
+				}
+			}
+		}
+		return null;
+	};
+
+	// Try to find operators in order of precedence (lowest first for right-associativity)
+	const arithMatch = findOperator(["+", "-"]) || findOperator(["*", "/"]);
+
+	if (arithMatch && arithMatch[1] && arithMatch[3]) {
+		const [, _left, _op, _right] = arithMatch;
 		// Don't treat leading minus as arithmetic operator
 		if (_op === "-" && _left.trim() === "") {
 			// Skip this match, it's a negative number not subtraction
@@ -260,14 +365,20 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 			const left = _evaluateExpression(_left.trim());
 			const right = _evaluateExpression(_right.trim());
 			return _createResult((ctx) => {
-				const leftVal = left.fn(ctx),
-					rightVal = right.fn(ctx);
+				const leftVal = left.fn(ctx);
+				const rightVal = right.fn(ctx);
+
 				if (_op === "+") {
-					return _isStr(leftVal) || _isStr(rightVal)
-						? `${leftVal}` + `${rightVal}`
-						: _isNum(leftVal) && _isNum(rightVal)
-						? (leftVal as number) + (rightVal as number)
-						: undefined;
+					// String concatenation - if either side is string, concatenate
+					if (_isStr(leftVal) || _isStr(rightVal)) {
+						return String(leftVal) + String(rightVal);
+					}
+					// Numeric addition
+					if (_isNum(leftVal) && _isNum(rightVal)) {
+						return (leftVal as number) + (rightVal as number);
+					}
+					// Mixed types - convert to string
+					return String(leftVal) + String(rightVal);
 				} else if (_isNum(leftVal) && _isNum(rightVal)) {
 					return _op === "-"
 						? (leftVal as number) - (rightVal as number)
@@ -280,7 +391,7 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 						: undefined;
 				}
 				return undefined;
-			}, new _set([...left._stateRefs, ...right._stateRefs]));
+			}, new Set([...left._stateRefs, ...right._stateRefs]));
 		}
 	}
 
@@ -291,7 +402,7 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 
 			// If not found, try State registry
 			if (result === undefined) {
-				const parts = expr.split(/[.\[\]]/).filter(_bool);
+				const parts = expr.split(/[.\[\]]/).filter(Boolean);
 				const baseStateName = parts[0];
 				if (baseStateName) {
 					const baseState = State.get(baseStateName);
@@ -305,40 +416,54 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 				}
 			}
 
-			return result !== undefined ? result : expr;
+			return result;
 		});
 	}
 
 	if (COMP_RE.test(expr)) {
 		const compMatch = expr.match(COMP_RE);
 		if (compMatch?.[1] && compMatch[3]) {
-			const rightTrimmed = compMatch[3].trim();
-			if (rightTrimmed && !"=><".includes(rightTrimmed[0]!)) {
-				// Inline comparison evaluation for single use
-				return _createResult((ctx = {}) => {
-					const match = expr.match(COMP_RE);
-					if (!match?.[1] || !match[3]) return false;
-					const [, left, op, right] = match;
-					const rightTrimmed = right.trim();
-					if (!rightTrimmed || "=><".includes(rightTrimmed[0]!))
-						return false;
-					const leftVal = _parseValue(left, ctx);
-					const rightVal = _parseValue(rightTrimmed, ctx);
+			const leftPart = compMatch[1].trim();
+			const operator = compMatch[2];
+			const rightPart = compMatch[3].trim();
 
-					return op === "===" && leftVal === rightVal
-						? true
-						: op === "!=="
-						? leftVal !== rightVal
-						: op === ">="
-						? leftVal >= rightVal
-						: op === "<="
-						? leftVal <= rightVal
-						: op === ">"
-						? leftVal > rightVal
-						: op === "<"
-						? leftVal < rightVal
-						: false;
-				});
+			if (rightPart && !"=><".includes(rightPart[0]!)) {
+				const left = _evaluateExpression(leftPart);
+				const right = _evaluateExpression(rightPart);
+
+				return _createResult((ctx = {}) => {
+					const leftVal = left.fn(ctx);
+					const rightVal = right.fn(ctx);
+
+					switch (operator) {
+						case "===":
+							return leftVal === rightVal;
+						case "!==":
+							return leftVal !== rightVal;
+						case ">=":
+							return (
+								typeof leftVal === typeof rightVal &&
+								(leftVal as any) >= (rightVal as any)
+							);
+						case "<=":
+							return (
+								typeof leftVal === typeof rightVal &&
+								(leftVal as any) <= (rightVal as any)
+							);
+						case ">":
+							return (
+								typeof leftVal === typeof rightVal &&
+								(leftVal as any) > (rightVal as any)
+							);
+						case "<":
+							return (
+								typeof leftVal === typeof rightVal &&
+								(leftVal as any) < (rightVal as any)
+							);
+						default:
+							return false;
+					}
+				}, new Set([...left._stateRefs, ...right._stateRefs]));
 			}
 		}
 		return _createResult(() => expr);
@@ -346,7 +471,15 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 
 	// Final fallback for properties and other expressions
 	return _createResult((ctx) => {
-		const result = _evalProp(expr, ctx);
-		return result !== undefined ? result : expr;
+		// Try property access first
+		if (PROP_RE.test(expr)) {
+			const result = _evalProp(expr, ctx);
+			return result !== undefined ? result : undefined;
+		}
+		// Return the raw expression as fallback
+		return expr;
 	});
 };
+
+// Public API
+export const evaluateExpression = _evaluateExpression;
