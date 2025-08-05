@@ -1,4 +1,4 @@
-import { State, createReactiveStore, effect } from "./State";
+import { State, _createReactiveStore, _effect } from "./State";
 import { RegEl } from "./registry";
 import _isEqual from "./equality";
 
@@ -14,7 +14,7 @@ export default {
 	State,
 	state,
 	derived,
-	createReactiveStore,
-	effect,
+	createReactiveStore: _createReactiveStore,
+	effect: _effect,
 	register,
 };

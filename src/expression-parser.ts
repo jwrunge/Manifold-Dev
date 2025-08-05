@@ -11,14 +11,15 @@ const ID = "[a-zA-Z_$][a-zA-Z0-9_$]*",
 	PROP_RE = new RegExp(`^${PROP}$`),
 	VALUE = `(?:${PROP}|-?\\d+(?:\\.\\d+)?|["'][^"']*["']|true|false|null|undefined)`,
 	COMP_RE = new RegExp(`^(${VALUE})\\s*(===|!==|>=|<=|>|<)\\s*(.+)$`),
-	STATE_RE = new RegExp(PROP, "g");
-
-const LITERALS: Record<string, unknown> = {
-	true: true,
-	false: false,
-	null: null,
-	undefined: undefined,
-};
+	STATE_RE = new RegExp(PROP, "g"),
+	LITERALS: Record<string, unknown> = {
+		true: true,
+		false: false,
+		null: null,
+		undefined: undefined,
+	},
+	isNum = (val: unknown): boolean => typeof val === "number",
+	isStr = (val: unknown): boolean => typeof val === "string";
 
 const parseArithmetic = (expr: string) => {
 	// Simple left-to-right parsing for basic arithmetic
@@ -294,24 +295,19 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 			const leftVal = left.fn(ctx),
 				rightVal = right.fn(ctx);
 			if (op === "+") {
-				return typeof leftVal === "string" ||
-					typeof rightVal === "string"
-					? String(leftVal ?? "") + String(rightVal ?? "")
-					: typeof leftVal === "number" &&
-					  typeof rightVal === "number"
-					? leftVal + rightVal
+				return isStr(leftVal) || isStr(rightVal)
+					? `${leftVal}` + `${rightVal}`
+					: isNum(leftVal) && isNum(rightVal)
+					? (leftVal as number) + (rightVal as number)
 					: undefined;
-			} else if (
-				typeof leftVal === "number" &&
-				typeof rightVal === "number"
-			) {
+			} else if (isNum(leftVal) && isNum(rightVal)) {
 				return op === "-"
-					? leftVal - rightVal
+					? (leftVal as number) - (rightVal as number)
 					: op === "*"
-					? leftVal * rightVal
+					? (leftVal as number) * (rightVal as number)
 					: op === "/"
 					? rightVal !== 0
-						? leftVal / rightVal
+						? (leftVal as number) / (rightVal as number)
 						: undefined
 					: undefined;
 			}

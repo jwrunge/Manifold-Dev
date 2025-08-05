@@ -1,28 +1,30 @@
 import _isEqual from "./equality";
 
-let currentEffect: Effect | null = null;
-let pending = new Set<Effect>();
-const _deps = new Map<string, Set<Effect>>();
+let _currentEffect: Effect | null = null;
+let _pending = new Set<Effect>();
 
-const track = (path: string) => {
-	if (!currentEffect) return;
+const _deps = new Map<string, Set<Effect>>();
+const _S = String;
+
+const _track = (path: string) => {
+	if (!_currentEffect) return;
 	let set = _deps.get(path);
 	if (!set) _deps.set(path, (set = new Set()));
-	set.add(currentEffect);
-	currentEffect._deps.add(() => set!.delete(currentEffect!));
+	set.add(_currentEffect);
+	_currentEffect._deps.add(() => set!.delete(_currentEffect!));
 };
 
-const trigger = (path: string) => {
+const _trigger = (path: string) => {
 	const set = _deps.get(path);
 	if (!set) return;
-	for (const effect of set) pending.add(effect);
-	flush();
+	for (const effect of set) _pending.add(effect);
+	_flush();
 };
 
-const flush = () => {
-	if (!pending.size) return;
-	const effects = [...pending];
-	pending.clear();
+const _flush = () => {
+	if (!_pending.size) return;
+	const effects = [..._pending];
+	_pending.clear();
 	for (const effect of effects) effect.run();
 };
 
@@ -30,26 +32,26 @@ const proxy = (obj: any, prefix = ""): any => {
 	if (!obj || typeof obj !== "object") return obj;
 	return new Proxy(obj, {
 		get(t, k) {
-			const path = prefix ? `${prefix}.${String(k)}` : String(k);
-			track(path);
+			const path = prefix ? `${prefix}.${_S(k)}` : _S(k);
+			_track(path);
 			const v = t[k];
 			return typeof v === "object" && v ? proxy(v, path) : v;
 		},
 		set(t, k, v) {
-			const path = prefix ? `${prefix}.${String(k)}` : String(k);
+			const path = prefix ? `${prefix}.${_S(k)}` : _S(k);
 			if (_isEqual(t[k], v)) return true;
 			t[k] = v;
-			trigger(path);
+			_trigger(path);
 			return true;
 		},
 	});
 };
 
-export const createReactiveStore = <T extends object>(initialState: T): T => {
+export const _createReactiveStore = <T extends object>(initialState: T): T => {
 	return proxy(initialState) as T;
 };
 
-export const effect = (fn: () => void) => {
+export const _effect = (fn: () => void) => {
 	const eff = new Effect(fn);
 	eff.run();
 	return () => eff.stop();
@@ -65,12 +67,12 @@ class Effect {
 		if (!this.active) return;
 		this._deps.forEach((cleanup) => cleanup());
 		this._deps.clear();
-		const prev = currentEffect;
-		currentEffect = this;
+		const prev = _currentEffect;
+		_currentEffect = this;
 		try {
 			this.fn();
 		} finally {
-			currentEffect = prev;
+			_currentEffect = prev;
 		}
 	}
 
@@ -82,7 +84,7 @@ class Effect {
 }
 
 // Global reactive store for all State instances
-const globalStore = createReactiveStore({ _states: {} } as {
+const _globalStore = _createReactiveStore({ _states: {} } as {
 	_states: Record<string, any>;
 });
 
@@ -95,17 +97,17 @@ export class State<T = unknown> {
 
 	constructor(value: T, name?: string) {
 		this._name = name ?? Math.random().toString(36).substring(2, 15);
-		globalStore._states[this._name] = value;
+		_globalStore._states[this._name] = value;
 		State.#reg.set(this._name, this);
 	}
 
 	static _createComputed<T>(deriveFn: () => T, name?: string): State<T> {
 		const state = new State(undefined as any, name);
 		state.#derive = deriveFn;
-		effect(() => {
+		_effect(() => {
 			const newValue = deriveFn();
-			if (!_isEqual(globalStore._states[state._name], newValue)) {
-				globalStore._states[state._name] = newValue;
+			if (!_isEqual(_globalStore._states[state._name], newValue)) {
+				_globalStore._states[state._name] = newValue;
 			}
 		});
 		return state;
@@ -120,16 +122,16 @@ export class State<T = unknown> {
 	}
 
 	get value(): T {
-		track(`states.${this._name}`);
-		return globalStore._states[this._name];
+		_track(`states.${this._name}`);
+		return _globalStore._states[this._name];
 	}
 
 	set value(newValue: T) {
 		if (this.#derive) return;
-		globalStore._states[this._name] = newValue;
+		_globalStore._states[this._name] = newValue;
 	}
 
 	effect(fn: () => void) {
-		return effect(fn);
+		return _effect(fn);
 	}
 }

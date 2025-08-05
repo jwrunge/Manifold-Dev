@@ -150,7 +150,7 @@ export class RegEl {
 					for (const [matchStr, state] of expressions) {
 						newText = newText.replaceAll(
 							matchStr,
-							String(state.value)
+							`${state.value}`
 						);
 					}
 					textNode.textContent = newText;
