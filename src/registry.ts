@@ -1,7 +1,8 @@
 import { _evaluateExpression } from "./expression-parser";
 import { State } from "./State";
 
-const _childNodes = "childNodes";
+const _childNodes = "childNodes",
+	_startsWith = "startsWith";
 
 type RegisterableEl = HTMLElement | SVGElement | MathMLElement;
 type Props = Record<string, unknown>;
@@ -32,10 +33,10 @@ export class RegEl {
 		const pendingEffects: (() => void)[] = [];
 
 		for (const attr of element.attributes) {
-			if (!attr.value.startsWith("${")) continue;
+			if (!attr.value[_startsWith]("${")) continue;
 
 			const parts = attr.value.split(">>");
-			const isEventHandler = attr.name.startsWith("on");
+			const isEventHandler = attr.name[_startsWith]("on");
 			let bindFn: CtxFunction | undefined;
 			let syncFn: CtxFunction | undefined;
 
@@ -100,7 +101,7 @@ export class RegEl {
 				// Check for binding attributes
 				let hasBinding = false;
 				for (const attr of element.attributes) {
-					if (attr.value.startsWith("${")) {
+					if (attr.value[_startsWith]("${")) {
 						hasBinding = true;
 						break;
 					}

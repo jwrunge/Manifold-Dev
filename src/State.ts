@@ -3,8 +3,9 @@ import _isEqual from "./equality";
 let _currentEffect: Effect | null = null;
 let _pending = new Set<Effect>();
 
-const _deps = new Map<string, Set<Effect>>();
-const _S = String;
+const _deps = new Map<string, Set<Effect>>(),
+	_S = String,
+	_objStr = "object";
 
 const _track = (path: string) => {
 	if (!_currentEffect) return;
@@ -28,14 +29,14 @@ const _flush = () => {
 	for (const effect of effects) effect._run();
 };
 
-const proxy = (obj: any, prefix = ""): any => {
-	if (!obj || typeof obj !== "object") return obj;
+const _proxy = (obj: any, prefix = ""): any => {
+	if (!obj || typeof obj !== _objStr) return obj;
 	return new Proxy(obj, {
 		get(t, k) {
 			const path = prefix ? `${prefix}.${_S(k)}` : _S(k);
 			_track(path);
 			const v = t[k];
-			return typeof v === "object" && v ? proxy(v, path) : v;
+			return typeof v === _objStr && v ? _proxy(v, path) : v;
 		},
 		set(t, k, v) {
 			const path = prefix ? `${prefix}.${_S(k)}` : _S(k);
@@ -45,10 +46,6 @@ const proxy = (obj: any, prefix = ""): any => {
 			return true;
 		},
 	});
-};
-
-export const _createReactiveStore = <T extends object>(initialState: T): T => {
-	return proxy(initialState) as T;
 };
 
 export const _effect = (fn: () => void) => {
@@ -84,9 +81,7 @@ class Effect {
 }
 
 // Global reactive store for all State instances
-const _globalStore = _createReactiveStore({ _states: {} } as {
-	_states: Record<string, any>;
-});
+const _globalStore = _proxy({ _states: {} });
 
 // State class that uses the new reactive store internally
 export class State<T = unknown> {

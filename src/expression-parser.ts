@@ -18,19 +18,20 @@ const ID = "[a-zA-Z_$][a-zA-Z0-9_$]*",
 		null: null,
 		undefined: undefined,
 	},
-	isNum = (val: unknown): boolean => typeof val === "number",
-	isStr = (val: unknown): boolean => typeof val === "string";
+	_bool = Boolean,
+	_isNum = (val: unknown): boolean => typeof val === "number",
+	_isStr = (val: unknown): boolean => typeof val === "string";
 
 const _parseArithmetic = (expr: string) => {
 	// Simple left-to-right parsing for basic arithmetic
 	const match = expr.match(/^(.+?)\s*([+\-*/])\s*(.+)$/);
 	if (!match || !match[1] || !match[3]) return null;
 
-	const [, left, op, right] = match;
+	const [, _left, _op, _right] = match;
 	// Don't treat leading minus as arithmetic operator
-	if (op === "-" && left.trim() === "") return null;
+	if (_op === "-" && _left.trim() === "") return null;
 
-	return { left: left.trim(), op, right: right.trim() };
+	return [_left.trim(), _op, _right.trim()];
 };
 
 const _parseTernary = (expr: string) => {
@@ -64,13 +65,13 @@ export const _evalProp = (
 	ctx: Record<string, unknown> = {}
 ): unknown => {
 	// Split on both dots and bracket notation
-	const parts = expr.split(/[.\[\]]/).filter(Boolean);
+	const parts = expr.split(/[.\[\]]/).filter(_bool);
 	let result: unknown = ctx;
 	for (const part of parts) {
 		if (result == null) return undefined;
 		// Handle numeric indices
 		if (/^\d+$/.test(part)) {
-			result = (result as any)[parseInt(part, 10)];
+			result = (result as any)[+part];
 		} else {
 			result = (result as any)[part];
 		}
@@ -83,7 +84,7 @@ export const _setProp = (
 	value: unknown,
 	ctx: Record<string, unknown> = {}
 ): void => {
-	const parts = expr.split(/[.\[\]]/).filter(Boolean);
+	const parts = expr.split(/[.\[\]]/).filter(_bool);
 	let target: any = ctx;
 
 	// Navigate to the parent object
@@ -92,7 +93,7 @@ export const _setProp = (
 		if (target == null || !part) return;
 
 		if (/^\d+$/.test(part)) {
-			target = target[parseInt(part, 10)];
+			target = target[+part];
 		} else {
 			target = target[part];
 		}
@@ -102,7 +103,7 @@ export const _setProp = (
 	const finalPart = parts[parts.length - 1];
 	if (target != null && finalPart != null) {
 		if (/^\d+$/.test(finalPart)) {
-			target[parseInt(finalPart, 10)] = value;
+			target[+finalPart] = value;
 		} else {
 			target[finalPart] = value;
 		}
@@ -150,12 +151,12 @@ const _evalComparison = (
 export interface ExpressionResult {
 	fn: CtxFunction;
 	_stateRefs: Set<{ _name: string; _state: State<unknown> }>;
-	isAssignment?: boolean;
-	assignTarget?: string;
+	_isAssignment?: boolean;
+	_assignTarget?: string;
 }
 
 const _createStateReference = (stateExpr: string): StateReference | null => {
-	const parts = stateExpr.split(/[.\[\]]/).filter(Boolean);
+	const parts = stateExpr.split(/[.\[\]]/).filter(_bool);
 	const baseStateName = parts[0];
 
 	if (!baseStateName) return null;
@@ -207,8 +208,8 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 				return value;
 			},
 			_stateRefs: valueResult._stateRefs,
-			isAssignment: true,
-			assignTarget: target,
+			_isAssignment: true,
+			_assignTarget: target,
 		};
 	}
 
@@ -291,21 +292,20 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 		);
 	}
 
-	const _arithParse = _parseArithmetic(expr);
-	if (_arithParse) {
-		const left = _evaluateExpression(_arithParse.left);
-		const right = _evaluateExpression(_arithParse.right);
-		const op = _arithParse.op;
+	const [l, op, r] = _parseArithmetic(expr) ?? [];
+	if (l) {
+		const left = _evaluateExpression(l);
+		const right = _evaluateExpression(r);
 		return _createResult((ctx) => {
 			const leftVal = left.fn(ctx),
 				rightVal = right.fn(ctx);
 			if (op === "+") {
-				return isStr(leftVal) || isStr(rightVal)
+				return _isStr(leftVal) || _isStr(rightVal)
 					? `${leftVal}` + `${rightVal}`
-					: isNum(leftVal) && isNum(rightVal)
+					: _isNum(leftVal) && _isNum(rightVal)
 					? (leftVal as number) + (rightVal as number)
 					: undefined;
-			} else if (isNum(leftVal) && isNum(rightVal)) {
+			} else if (_isNum(leftVal) && _isNum(rightVal)) {
 				return op === "-"
 					? (leftVal as number) - (rightVal as number)
 					: op === "*"
@@ -327,7 +327,7 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 
 			// If not found, try State registry
 			if (result === undefined) {
-				const parts = expr.split(/[.\[\]]/).filter(Boolean);
+				const parts = expr.split(/[.\[\]]/).filter(_bool);
 				const baseStateName = parts[0];
 				if (baseStateName) {
 					const baseState = State.get(baseStateName);
