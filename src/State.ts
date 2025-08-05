@@ -25,7 +25,7 @@ const _flush = () => {
 	if (!_pending.size) return;
 	const effects = [..._pending];
 	_pending.clear();
-	for (const effect of effects) effect.run();
+	for (const effect of effects) effect._run();
 };
 
 const proxy = (obj: any, prefix = ""): any => {
@@ -53,18 +53,18 @@ export const _createReactiveStore = <T extends object>(initialState: T): T => {
 
 export const _effect = (fn: () => void) => {
 	const eff = new Effect(fn);
-	eff.run();
-	return () => eff.stop();
+	eff._run();
+	return () => eff._stop();
 };
 
 class Effect {
 	_deps = new Set<() => void>();
-	active = true;
+	_active = true;
 
 	constructor(public fn: () => void) {}
 
-	run() {
-		if (!this.active) return;
+	_run() {
+		if (!this._active) return;
 		this._deps.forEach((cleanup) => cleanup());
 		this._deps.clear();
 		const prev = _currentEffect;
@@ -76,8 +76,8 @@ class Effect {
 		}
 	}
 
-	stop() {
-		this.active = false;
+	_stop() {
+		this._active = false;
 		this._deps.forEach((cleanup) => cleanup());
 		this._deps.clear();
 	}
@@ -90,7 +90,7 @@ const _globalStore = _createReactiveStore({ _states: {} } as {
 
 // State class that uses the new reactive store internally
 export class State<T = unknown> {
-	public _name: string;
+	_name: string;
 	#derive?: () => T;
 
 	static #reg = new Map<string, State<unknown>>();
@@ -115,10 +115,6 @@ export class State<T = unknown> {
 
 	static get<T>(name?: string): State<T> | undefined {
 		return name ? (this.#reg.get(name) as State<T> | undefined) : undefined;
-	}
-
-	static register<T>(name: string, state: State<T>): void {
-		this.#reg.set(name, state);
 	}
 
 	get value(): T {

@@ -1,15 +1,15 @@
 const _objStr = "object",
-	_constructor = "constructor";
+	_constructor = "constructor",
+	_keys = Object.keys;
 
-// Optimized equality for common UI use cases
 // Note: Map/Set contents are not deeply compared - this is intentional
 // for granular reactivity (UI updates happen via property access, not container equality)
 const _isEqual = (a: any, b: any): boolean => {
 	if (a === b) return true;
 	if (!(a && b && typeof a == _objStr && typeof b == _objStr)) return false;
 
-	const cA = a[_constructor];
-	const cB = b[_constructor];
+	const cA = a[_constructor],
+		cB = b[_constructor];
 	if (cA !== cB) return false;
 
 	const ret =
@@ -26,8 +26,8 @@ const _isEqual = (a: any, b: any): boolean => {
 
 	if (ret !== null) return ret;
 
-	const kA = Object.keys(a);
-	if (kA.length !== Object.keys(b).length) return false;
+	const kA = _keys(a);
+	if (kA.length !== _keys(b).length) return false;
 
 	for (const k of kA) if (!(k in b) || !_isEqual(a[k], b[k])) return false;
 	return true;

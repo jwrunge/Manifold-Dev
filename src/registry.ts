@@ -1,5 +1,7 @@
-import { evaluateExpression } from "./expression-parser";
+import { _evaluateExpression } from "./expression-parser";
 import { State } from "./State";
+
+const _childNodes = "childNodes";
 
 type RegisterableEl = HTMLElement | SVGElement | MathMLElement;
 type Props = Record<string, unknown>;
@@ -8,7 +10,7 @@ export type CtxFunction = (props?: Props) => unknown;
 export class RegEl {
 	static #registry = new WeakMap<Element, RegEl>();
 	#element: RegisterableEl;
-	public props: Props = {};
+	_props: Props = {};
 
 	static register(element: RegisterableEl) {
 		return RegEl.#registry.get(element) ?? new RegEl(element);
@@ -22,7 +24,7 @@ export class RegEl {
 		while (parent) {
 			const rl = RegEl.#registry.get(parent);
 			if (!rl) break;
-			Object.assign(this.props, rl.props);
+			Object.assign(this._props, rl._props);
 			parent = parent.parentElement;
 		}
 
@@ -39,7 +41,7 @@ export class RegEl {
 
 			// Process bind and sync expressions
 			for (const [i, part] of parts.entries()) {
-				const { fn, _stateRefs } = evaluateExpression(
+				const { fn, _stateRefs } = _evaluateExpression(
 					part.slice(2, -1)
 				); // Remove ${ and }
 
@@ -48,20 +50,20 @@ export class RegEl {
 					else syncFn = fn;
 				}
 
-				for (const { name, state } of _stateRefs) {
-					this.props[name] ??= state;
+				for (const { _name: name, _state: state } of _stateRefs) {
+					this._props[name] ??= state;
 				}
 			}
 
 			// Create effects
 			if (bindFn) {
 				const bindState = State._createComputed(() =>
-					bindFn!(this.props)
+					bindFn!(this._props)
 				);
 				pendingEffects.push(() => {
 					bindState.effect(() => {
 						this.#setProp(attr.name, bindState.value);
-						syncFn?.(this.props);
+						syncFn?.(this._props);
 					});
 				});
 			}
@@ -69,7 +71,7 @@ export class RegEl {
 			if (isEventHandler && syncFn) {
 				element.removeAttribute(attr.name);
 				element.addEventListener(attr.name.slice(2), () =>
-					syncFn!(this.props)
+					syncFn!(this._props)
 				);
 			}
 		}
@@ -110,14 +112,14 @@ export class RegEl {
 				}
 
 				// Add children to stack (in reverse order to maintain traversal order)
-				for (let i = element.childNodes.length - 1; i >= 0; i--) {
-					stack.push(element.childNodes[i]!);
+				for (let i = element[_childNodes].length - 1; i >= 0; i--) {
+					stack.push(element[_childNodes][i]!);
 				}
 			} else if (current.nodeType === Node.TEXT_NODE) {
 				this.#processTextNode(current as Text);
 			} else {
-				for (let i = current.childNodes.length - 1; i >= 0; i--) {
-					stack.push(current.childNodes[i]!);
+				for (let i = current[_childNodes].length - 1; i >= 0; i--) {
+					stack.push(current[_childNodes][i]!);
 				}
 			}
 		}
@@ -129,16 +131,16 @@ export class RegEl {
 
 		let match;
 		while ((match = /\$\{[^}]*\}/g.exec(originalText))) {
-			const { _stateRefs, fn } = evaluateExpression(
+			const { _stateRefs, fn } = _evaluateExpression(
 				match[0].slice(2, -1)
 			);
 
-			for (const { name, state } of _stateRefs) {
-				this.props[name] ??= state;
+			for (const { _name: name, _state: state } of _stateRefs) {
+				this._props[name] ??= state;
 			}
 
 			if (fn) {
-				const state = State._createComputed(() => fn(this.props));
+				const state = State._createComputed(() => fn(this._props));
 				expressions.push([match[0], state]);
 			}
 		}

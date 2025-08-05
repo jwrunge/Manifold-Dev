@@ -2,8 +2,8 @@ import { CtxFunction } from "./registry";
 import { State } from "./State";
 
 export interface StateReference {
-	name: string;
-	state: State<unknown>;
+	_name: string;
+	_state: State<unknown>;
 }
 
 const ID = "[a-zA-Z_$][a-zA-Z0-9_$]*",
@@ -21,7 +21,7 @@ const ID = "[a-zA-Z_$][a-zA-Z0-9_$]*",
 	isNum = (val: unknown): boolean => typeof val === "number",
 	isStr = (val: unknown): boolean => typeof val === "string";
 
-const parseArithmetic = (expr: string) => {
+const _parseArithmetic = (expr: string) => {
 	// Simple left-to-right parsing for basic arithmetic
 	const match = expr.match(/^(.+?)\s*([+\-*/])\s*(.+)$/);
 	if (!match || !match[1] || !match[3]) return null;
@@ -33,7 +33,7 @@ const parseArithmetic = (expr: string) => {
 	return { left: left.trim(), op, right: right.trim() };
 };
 
-const parseTernary = (expr: string) => {
+const _parseTernary = (expr: string) => {
 	let qIdx = -1,
 		cIdx = -1,
 		depth = 0;
@@ -59,7 +59,7 @@ const parseTernary = (expr: string) => {
 		  };
 };
 
-export const evalProp = (
+export const _evalProp = (
 	expr: string,
 	ctx: Record<string, unknown> = {}
 ): unknown => {
@@ -78,7 +78,7 @@ export const evalProp = (
 	return result;
 };
 
-export const setProp = (
+export const _setProp = (
 	expr: string,
 	value: unknown,
 	ctx: Record<string, unknown> = {}
@@ -109,18 +109,18 @@ export const setProp = (
 	}
 };
 
-const parseValue = (val: string, ctx: Record<string, unknown>): any => {
+const _parseValue = (val: string, ctx: Record<string, unknown>): any => {
 	val = val.trim();
 	if (val in LITERALS) return LITERALS[val];
 	if (/^-?\d+\.?\d*$/.test(val)) return parseFloat(val);
 	const strMatch = val.match(/^(['"`])(.*?)\1$/);
 	if (strMatch) return strMatch[2];
 
-	if (PROP_RE.test(val)) return evalProp(val, ctx);
+	if (PROP_RE.test(val)) return _evalProp(val, ctx);
 	return val;
 };
 
-const evalComparison = (
+const _evalComparison = (
 	expr: string,
 	ctx: Record<string, unknown> = {}
 ): boolean => {
@@ -129,8 +129,8 @@ const evalComparison = (
 	const [, left, op, right] = match;
 	const rightTrimmed = right.trim();
 	if (!rightTrimmed || "=><".includes(rightTrimmed[0]!)) return false;
-	const leftVal = parseValue(left, ctx);
-	const rightVal = parseValue(rightTrimmed, ctx);
+	const leftVal = _parseValue(left, ctx);
+	const rightVal = _parseValue(rightTrimmed, ctx);
 
 	return op === "===" && leftVal === rightVal
 		? true
@@ -149,12 +149,12 @@ const evalComparison = (
 
 export interface ExpressionResult {
 	fn: CtxFunction;
-	_stateRefs: Set<{ name: string; state: State<unknown> }>;
+	_stateRefs: Set<{ _name: string; _state: State<unknown> }>;
 	isAssignment?: boolean;
 	assignTarget?: string;
 }
 
-const createStateReference = (stateExpr: string): StateReference | null => {
+const _createStateReference = (stateExpr: string): StateReference | null => {
 	const parts = stateExpr.split(/[.\[\]]/).filter(Boolean);
 	const baseStateName = parts[0];
 
@@ -175,19 +175,19 @@ const createStateReference = (stateExpr: string): StateReference | null => {
 		const propertyPath = parts.slice(1);
 		defaultName = `${baseStateName}.${propertyPath.join(".")}`;
 		resultState = State._createComputed(() => {
-			return evalProp(propertyPath.join("."), {
+			return _evalProp(propertyPath.join("."), {
 				[baseStateName]: baseState.value,
 			});
 		}, defaultName);
 	}
 
 	return {
-		name: defaultName,
-		state: resultState,
+		_name: defaultName,
+		_state: resultState,
 	};
 };
 
-export const evaluateExpression = (expr?: string): ExpressionResult => {
+export const _evaluateExpression = (expr?: string): ExpressionResult => {
 	expr = expr?.trim();
 	if (!expr) return { fn: () => undefined, _stateRefs: new Set() };
 
@@ -198,12 +198,12 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 	if (assignMatch && assignMatch[1] && assignMatch[2]) {
 		const target = assignMatch[1];
 		const valueExpr = assignMatch[2];
-		const valueResult = evaluateExpression(valueExpr);
+		const valueResult = _evaluateExpression(valueExpr);
 
 		return {
 			fn: (ctx) => {
 				const value = valueResult.fn(ctx);
-				setProp(target, value, ctx);
+				_setProp(target, value, ctx);
 				return value;
 			},
 			_stateRefs: valueResult._stateRefs,
@@ -212,27 +212,31 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 		};
 	}
 
-	const stateRefs = new Set<{ name: string; state: State<unknown> }>();
+	const stateRefs = new Set<{ _name: string; _state: State<unknown> }>();
 	// Find all potential state references (valid identifiers)
 	Array.from(expr.matchAll(STATE_RE)).forEach((match) => {
-		const stateRef = createStateReference(match[0]);
+		const stateRef = _createStateReference(match[0]);
 		if (stateRef) stateRefs.add(stateRef);
 	});
 
-	const createResult = (
+	const _createResult = (
 		fn: CtxFunction,
-		additionalRefs: Set<{ name: string; state: State<unknown> }> = new Set()
+		additionalRefs: Set<{
+			_name: string;
+			_state: State<unknown>;
+		}> = new Set()
 	): ExpressionResult => ({
 		fn,
 		_stateRefs: new Set([...stateRefs, ...additionalRefs]),
 	});
 
-	if (expr in LITERALS) return createResult(() => LITERALS[expr]);
-	if (/^-?\d+\.?\d*$/.test(expr)) return createResult(() => parseFloat(expr));
+	if (expr in LITERALS) return _createResult(() => LITERALS[expr]);
+	if (/^-?\d+\.?\d*$/.test(expr))
+		return _createResult(() => parseFloat(expr));
 
 	const strMatch = expr.match(/^(['"`])(.*?)\1$/);
 	if (strMatch?.[2] !== undefined) {
-		return createResult(() => strMatch[2]);
+		return _createResult(() => strMatch[2]);
 	}
 
 	if (expr.startsWith("(") && expr.endsWith(")")) {
@@ -246,52 +250,53 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 				break;
 			}
 		}
-		if (isFullyWrapped) return evaluateExpression(expr.slice(1, -1).trim());
+		if (isFullyWrapped)
+			return _evaluateExpression(expr.slice(1, -1).trim());
 	}
 
-	const ternary = parseTernary(expr);
+	const ternary = _parseTernary(expr);
 	if (ternary) {
-		const cond = evaluateExpression(ternary._condition);
-		const tv = evaluateExpression(ternary._trueValue);
-		const fv = evaluateExpression(ternary._falseValue);
-		return createResult(
+		const cond = _evaluateExpression(ternary._condition);
+		const tv = _evaluateExpression(ternary._trueValue);
+		const fv = _evaluateExpression(ternary._falseValue);
+		return _createResult(
 			(ctx) => (cond.fn(ctx) ? tv.fn(ctx) : fv.fn(ctx)),
 			new Set([...cond._stateRefs, ...tv._stateRefs, ...fv._stateRefs])
 		);
 	}
 
-	const negMatch = expr.match(/^!\s*(.+)$/);
-	if (negMatch?.[1]) {
-		const inner = evaluateExpression(negMatch[1]);
-		return createResult((ctx) => !inner.fn(ctx), inner._stateRefs);
+	const _negMatch = expr.match(/^!\s*(.+)$/);
+	if (_negMatch?.[1]) {
+		const inner = _evaluateExpression(_negMatch[1]);
+		return _createResult((ctx) => !inner.fn(ctx), inner._stateRefs);
 	}
 
-	const orMatch = expr.match(/^(.+?)\s*\|\|\s*(.+)$/);
-	if (orMatch?.[1] && orMatch[2]) {
-		const left = evaluateExpression(orMatch[1]);
-		const right = evaluateExpression(orMatch[2]);
-		return createResult(
+	const _orMatch = expr.match(/^(.+?)\s*\|\|\s*(.+)$/);
+	if (_orMatch?.[1] && _orMatch[2]) {
+		const left = _evaluateExpression(_orMatch[1]);
+		const right = _evaluateExpression(_orMatch[2]);
+		return _createResult(
 			(ctx) => left.fn(ctx) || right.fn(ctx),
 			new Set([...left._stateRefs, ...right._stateRefs])
 		);
 	}
 
-	const andMatch = expr.match(/^(.+?)\s*&&\s*(.+)$/);
-	if (andMatch?.[1] && andMatch[2]) {
-		const left = evaluateExpression(andMatch[1]);
-		const right = evaluateExpression(andMatch[2]);
-		return createResult(
+	const _andMatch = expr.match(/^(.+?)\s*&&\s*(.+)$/);
+	if (_andMatch?.[1] && _andMatch[2]) {
+		const left = _evaluateExpression(_andMatch[1]);
+		const right = _evaluateExpression(_andMatch[2]);
+		return _createResult(
 			(ctx) => left.fn(ctx) && right.fn(ctx),
 			new Set([...left._stateRefs, ...right._stateRefs])
 		);
 	}
 
-	const arithParse = parseArithmetic(expr);
-	if (arithParse) {
-		const left = evaluateExpression(arithParse.left);
-		const right = evaluateExpression(arithParse.right);
-		const op = arithParse.op;
-		return createResult((ctx) => {
+	const _arithParse = _parseArithmetic(expr);
+	if (_arithParse) {
+		const left = _evaluateExpression(_arithParse.left);
+		const right = _evaluateExpression(_arithParse.right);
+		const op = _arithParse.op;
+		return _createResult((ctx) => {
 			const leftVal = left.fn(ctx),
 				rightVal = right.fn(ctx);
 			if (op === "+") {
@@ -316,9 +321,9 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 	}
 
 	if (PROP_RE.test(expr)) {
-		return createResult((ctx) => {
+		return _createResult((ctx) => {
 			// Try to resolve from context first
-			let result = evalProp(expr, ctx);
+			let result = _evalProp(expr, ctx);
 
 			// If not found, try State registry
 			if (result === undefined) {
@@ -331,7 +336,7 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 							...ctx,
 							[baseStateName]: baseState.value,
 						};
-						result = evalProp(expr, stateContext);
+						result = _evalProp(expr, stateContext);
 					}
 				}
 			}
@@ -345,15 +350,15 @@ export const evaluateExpression = (expr?: string): ExpressionResult => {
 		if (compMatch?.[1] && compMatch[3]) {
 			const rightTrimmed = compMatch[3].trim();
 			if (rightTrimmed && !"=><".includes(rightTrimmed[0]!)) {
-				return createResult((ctx) => evalComparison(expr, ctx));
+				return _createResult((ctx) => _evalComparison(expr, ctx));
 			}
 		}
-		return createResult(() => expr);
+		return _createResult(() => expr);
 	}
 
 	// Final fallback for properties and other expressions
-	return createResult((ctx) => {
-		const result = evalProp(expr, ctx);
+	return _createResult((ctx) => {
+		const result = _evalProp(expr, ctx);
 		return result !== undefined ? result : expr;
 	});
 };

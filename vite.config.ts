@@ -25,7 +25,7 @@ export default defineConfig({
 	},
 	esbuild: {
 		// Use esbuild's property mangling
-		mangleProps: /^_/, // Mangle properties starting with underscore
+		mangleProps: /^(_|#)/, // Mangle properties starting with underscore
 		reserveProps: /^(?:constructor|prototype|__proto__|fn)$/, // Reserve important properties
 		minifyIdentifiers: true,
 		minifySyntax: true,
