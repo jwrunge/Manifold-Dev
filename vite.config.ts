@@ -23,6 +23,14 @@ export default defineConfig({
 			},
 		},
 	},
+	server: {
+		hmr: false,
+		headers: {
+			"Cross-Origin-Embedder-Policy": "require-corp",
+			"Cross-Origin-Opener-Policy": "same-origin",
+		},
+	},
+	base: "./",
 	esbuild: {
 		// Use esbuild's property mangling
 		mangleProps: /^(_|#)/, // Mangle properties starting with underscore

@@ -1,0 +1,93 @@
+/* View Transitions CSS */
+@view-transition {
+	navigation: auto;
+}
+
+/* Base element styles */
+.moveable {
+	position: absolute;
+	width: 100px;
+	height: 100px;
+	border-radius: 8px;
+	view-transition-name: my-box;
+}
+
+/* Page transition setup */
+#page1,
+#page2 {
+	view-transition-name: page;
+}
+
+/* Directional slide transitions using CSS custom properties */
+::view-transition-old(page) {
+	animation: var(--slide-out-direction, slide-out-left) 0.6s ease-in-out;
+}
+
+::view-transition-new(page) {
+	animation: var(--slide-in-direction, slide-in-right) 0.6s ease-in-out;
+}
+
+/* Box transition timing */
+::view-transition-old(my-box),
+::view-transition-new(my-box) {
+	animation-duration: 1.5s;
+	animation-timing-function: ease-in-out;
+}
+
+/* Slide animations */
+@keyframes slide-out-left {
+	to {
+		transform: translateX(-100%);
+	}
+}
+
+@keyframes slide-in-right {
+	from {
+		transform: translateX(100%);
+	}
+}
+
+@keyframes slide-out-right {
+	to {
+		transform: translateX(100%);
+	}
+}
+
+@keyframes slide-in-left {
+	from {
+		transform: translateX(-100%);
+	}
+}
+
+/* Alternative slide directions for different navigation patterns */
+.slide-vertical ::view-transition-old(page) {
+	animation: slide-out-up 0.6s ease-in-out;
+}
+
+.slide-vertical ::view-transition-new(page) {
+	animation: slide-in-down 0.6s ease-in-out;
+}
+
+@keyframes slide-out-up {
+	to {
+		transform: translateY(-100%);
+	}
+}
+
+@keyframes slide-in-down {
+	from {
+		transform: translateY(-100%);
+	}
+}
+
+@keyframes slide-out-down {
+	to {
+		transform: translateY(100%);
+	}
+}
+
+@keyframes slide-in-up {
+	from {
+		transform: translateY(100%);
+	}
+}

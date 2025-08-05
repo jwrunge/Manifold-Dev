@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Manifold Transition Example</title>
+
+		<!-- Optional: Include Manifold's default transitions -->
+		<link rel="stylesheet" href="manifold-transitions.css" />
+
+		<style>
+			/* User's custom transitions */
+			:root {
+				--mf-transition-duration: 0.8s; /* Custom duration */
+			}
+
+			/* Custom page transitions */
+			body.mf-intro {
+				animation: custom-enter var(--mf-transition-duration)
+					cubic-bezier(0.25, 0.46, 0.45, 0.94);
+			}
+
+			body.mf-transitioning.mf-outro {
+				animation: custom-exit var(--mf-transition-duration) ease-in;
+			}
+
+			/* Custom element transitions */
+			#hero.mf-transitioning.mf-outro {
+				animation: hero-exit 0.5s ease-in;
+			}
+
+			#hero.mf-intro {
+				animation: hero-enter 0.5s ease-out 0.2s both; /* Delayed entrance */
+			}
+
+			.card.mf-transitioning.mf-outro {
+				animation: card-flip-out 0.4s ease-in;
+			}
+
+			.card.mf-intro {
+				animation: card-flip-in 0.4s ease-out;
+			}
+
+			/* Custom animations */
+			@keyframes custom-enter {
+				from {
+					transform: scale(0.9) rotateY(-15deg);
+					opacity: 0;
+				}
+				to {
+					transform: scale(1) rotateY(0deg);
+					opacity: 1;
+				}
+			}
+
+			@keyframes custom-exit {
+				from {
+					transform: scale(1) rotateY(0deg);
+					opacity: 1;
+				}
+				to {
+					transform: scale(1.1) rotateY(15deg);
+					opacity: 0;
+				}
+			}
+
+			@keyframes hero-exit {
+				from {
+					transform: translateY(0) scale(1);
+					opacity: 1;
+				}
+				to {
+					transform: translateY(-50px) scale(0.95);
+					opacity: 0;
+				}
+			}
+
+			@keyframes hero-enter {
+				from {
+					transform: translateY(50px) scale(0.95);
+					opacity: 0;
+				}
+				to {
+					transform: translateY(0) scale(1);
+					opacity: 1;
+				}
+			}
+
+			@keyframes card-flip-out {
+				from {
+					transform: rotateY(0deg);
+					opacity: 1;
+				}
+				to {
+					transform: rotateY(90deg);
+					opacity: 0;
+				}
+			}
+
+			@keyframes card-flip-in {
+				from {
+					transform: rotateY(-90deg);
+					opacity: 0;
+				}
+				to {
+					transform: rotateY(0deg);
+					opacity: 1;
+				}
+			}
+
+			/* Basic styling */
+			body {
+				font-family: system-ui, sans-serif;
+				margin: 0;
+				padding: 2rem;
+			}
+
+			#hero {
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				color: white;
+				padding: 3rem;
+				border-radius: 1rem;
+				margin-bottom: 2rem;
+			}
+
+			.card {
+				background: white;
+				border: 1px solid #ddd;
+				border-radius: 0.5rem;
+				padding: 1.5rem;
+				margin: 1rem 0;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+
+			a {
+				color: #667eea;
+				text-decoration: none;
+				font-weight: 500;
+			}
+
+			a:hover {
+				text-decoration: underline;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="hero">
+			<h1>Custom Transition Example</h1>
+			<p>This page uses custom Manifold transitions with CSS.</p>
+		</div>
+
+		<div class="card">
+			<h2>Navigation</h2>
+			<p><a href="page1.html">Go to Page 1</a></p>
+			<p><a href="index.html">Back to Index</a></p>
+			<p><a href="#" data-mf-no-transition>Link without transition</a></p>
+		</div>
+
+		<div class="card">
+			<h2>How it works</h2>
+			<p>The Manifold transition system adds these classes:</p>
+			<ul>
+				<li><code>.mf-intro</code> - Added on page load</li>
+				<li>
+					<code>.mf-transitioning.mf-outro</code> - Added before
+					navigation
+				</li>
+				<li>
+					<code>.mf-reduced-motion</code> - Added if user prefers
+					reduced motion
+				</li>
+			</ul>
+		</div>
+
+		<script src="transition-router.js"></script>
+	</body>
+</html>

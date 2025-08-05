@@ -1,3 +1,5 @@
+import { CtxFunction } from "../src/registry";
+
 const _handleSelectorInsert = (
 	selectorExp: string,
 	element: RegEl,

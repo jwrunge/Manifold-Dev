@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>No Flash Example - About</title>
+		<meta name="view-transition" content="same-origin" />
+		<link rel="stylesheet" href="cross-document-transitions.css" />
+
+		<style>
+			body {
+				margin: 0;
+				font-family: system-ui, sans-serif;
+				background: #f5f5f5;
+			}
+
+			.site-header {
+				background: #2d3748;
+				color: white;
+				padding: 1rem 2rem;
+				position: sticky;
+				top: 0;
+				z-index: 100;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+
+			.site-nav {
+				background: #4a5568;
+				padding: 0.5rem 2rem;
+				display: flex;
+				gap: 2rem;
+			}
+
+			.site-nav a {
+				color: white;
+				text-decoration: none;
+				padding: 0.5rem 1rem;
+				border-radius: 0.25rem;
+			}
+
+			.site-nav a:hover,
+			.site-nav a.active {
+				background: #667eea;
+			}
+
+			.main-content {
+				padding: 2rem;
+				max-width: 800px;
+				margin: 0 auto;
+			}
+
+			.hero-section {
+				background: linear-gradient(135deg, #38b2ac 0%, #319795 100%);
+				color: white;
+				padding: 4rem 2rem;
+				border-radius: 1rem;
+				text-align: center;
+				margin-bottom: 2rem;
+			}
+
+			.about-content {
+				background: white;
+				padding: 2rem;
+				border-radius: 0.5rem;
+				margin: 2rem 0;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+
+			.site-footer {
+				background: #2d3748;
+				color: white;
+				text-align: center;
+				padding: 2rem;
+				margin-top: 4rem;
+			}
+
+			.article-title {
+				color: #2d3748;
+				margin-bottom: 1rem;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Same persistent header -->
+		<header class="site-header">
+			<h1>🚀 My Awesome Site</h1>
+			<p>Common header that should never flash</p>
+		</header>
+
+		<!-- Same persistent navigation -->
+		<nav class="site-nav">
+			<a href="no-flash-home.html">Home</a>
+			<a href="no-flash-about.html" class="active">About</a>
+			<a href="no-flash-contact.html">Contact</a>
+			<a href="no-flash-blog.html">Blog</a>
+		</nav>
+
+		<!-- Different main content -->
+		<main class="main-content">
+			<section class="hero-section">
+				<h1 class="article-title">About Us 📖</h1>
+				<p>Learn more about our mission and values.</p>
+			</section>
+
+			<div class="about-content">
+				<h2 class="article-title">Our Story</h2>
+				<p>
+					Notice how smoothly the content changed while the header and
+					navigation stayed perfectly stable? That's the power of
+					properly configured cross-document view transitions!
+				</p>
+
+				<p>
+					The key insight is that the View Transitions API applies a
+					default fade to the entire page, but we can override this
+					behavior to only transition specific elements.
+				</p>
+
+				<h3>What We Did:</h3>
+				<ul>
+					<li>
+						<strong>Disabled root transition:</strong> No page-wide
+						fade
+					</li>
+					<li>
+						<strong>Persistent elements:</strong> Header, nav,
+						footer have stable names
+					</li>
+					<li>
+						<strong>Content transitions:</strong> Only main content
+						animates
+					</li>
+					<li>
+						<strong>Fallback support:</strong> Works without View
+						Transitions API
+					</li>
+				</ul>
+
+				<p>
+					This creates a smooth, app-like experience while maintaining
+					the benefits of traditional multi-page architecture!
+				</p>
+			</div>
+		</main>
+
+		<!-- Same persistent footer -->
+		<footer class="site-footer">
+			<p>&copy; 2024 My Awesome Site. Footer also doesn't flash!</p>
+		</footer>
+
+		<script src="transition-router.js"></script>
+	</body>
+</html>

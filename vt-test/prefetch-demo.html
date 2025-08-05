@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Prefetch Demo</title>
+
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				line-height: 1.6;
+			}
+
+			.prefetch-indicator {
+				position: fixed;
+				top: 10px;
+				right: 10px;
+				background: #4a5568;
+				color: white;
+				padding: 0.5rem 1rem;
+				border-radius: 0.25rem;
+				font-size: 0.875rem;
+				z-index: 1000;
+			}
+
+			.link-section {
+				background: #f7fafc;
+				padding: 1.5rem;
+				border-radius: 0.5rem;
+				margin: 1rem 0;
+			}
+
+			.link-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+				gap: 1rem;
+				margin: 1rem 0;
+			}
+
+			.link-card {
+				background: white;
+				padding: 1rem;
+				border-radius: 0.25rem;
+				border: 1px solid #e2e8f0;
+				text-align: center;
+			}
+
+			.link-card a {
+				text-decoration: none;
+				color: #4a5568;
+				font-weight: 500;
+			}
+
+			.link-card a:hover {
+				color: #667eea;
+			}
+
+			.stats {
+				background: #edf2f7;
+				padding: 1rem;
+				border-radius: 0.25rem;
+				margin: 1rem 0;
+				font-family: monospace;
+				font-size: 0.875rem;
+			}
+
+			.critical {
+				border: 2px solid #f56565;
+			}
+
+			.no-prefetch {
+				opacity: 0.6;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="prefetch-indicator" id="prefetchStatus">Prefetched: 0</div>
+
+		<h1>🚀 Prefetch Demo</h1>
+		<p>
+			Hover over links to see prefetching in action! Check the browser's
+			Network tab to see prefetch requests.
+		</p>
+
+		<div class="link-section">
+			<h2>Hover Prefetch (Most Effective)</h2>
+			<p>These links will be prefetched when you hover over them:</p>
+
+			<div class="link-grid">
+				<div class="link-card">
+					<a href="page1.html">Page 1</a>
+					<br /><small>Hover to prefetch</small>
+				</div>
+				<div class="link-card">
+					<a href="about.html">About Page</a>
+					<br /><small>Hover to prefetch</small>
+				</div>
+				<div class="link-card">
+					<a href="contact.html">Contact</a>
+					<br /><small>Hover to prefetch</small>
+				</div>
+			</div>
+		</div>
+
+		<div class="link-section">
+			<h2>Critical Prefetch (Idle Time)</h2>
+			<p>
+				These links are prefetched automatically when the browser is
+				idle:
+			</p>
+
+			<div class="link-grid">
+				<div class="link-card critical">
+					<a href="dashboard.html" data-mf-prefetch="critical"
+						>Dashboard</a
+					>
+					<br /><small>Critical - auto prefetched</small>
+				</div>
+				<div class="link-card critical">
+					<a href="settings.html" data-mf-prefetch="critical"
+						>Settings</a
+					>
+					<br /><small>Critical - auto prefetched</small>
+				</div>
+			</div>
+		</div>
+
+		<div class="link-section">
+			<h2>Disabled Prefetch</h2>
+			<p>These links won't be prefetched:</p>
+
+			<div class="link-grid">
+				<div class="link-card no-prefetch">
+					<a href="large-file.pdf" data-mf-no-prefetch>Large PDF</a>
+					<br /><small>Explicitly disabled</small>
+				</div>
+				<div class="link-card no-prefetch">
+					<a href="https://external.com">External Site</a>
+					<br /><small>External - auto skipped</small>
+				</div>
+			</div>
+		</div>
+
+		<div class="link-section">
+			<h2>Viewport Prefetch</h2>
+			<p>
+				Scroll down to see more links that prefetch when they come into
+				view:
+			</p>
+
+			<div
+				style="
+					height: 50vh;
+					background: #f0f0f0;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					margin: 2rem 0;
+				"
+			>
+				<p>👇 Scroll down for viewport prefetch demo 👇</p>
+			</div>
+
+			<div class="link-grid">
+				<div class="link-card">
+					<a href="lazy1.html">Lazy Page 1</a>
+					<br /><small>Prefetched on scroll into view</small>
+				</div>
+				<div class="link-card">
+					<a href="lazy2.html">Lazy Page 2</a>
+					<br /><small>Prefetched on scroll into view</small>
+				</div>
+				<div class="link-card">
+					<a href="lazy3.html">Lazy Page 3</a>
+					<br /><small>Prefetched on scroll into view</small>
+				</div>
+			</div>
+		</div>
+
+		<div class="stats" id="stats">
+			<h3>Prefetch Stats:</h3>
+			<div id="statsContent">Loading...</div>
+			<button onclick="updateStats()">Refresh Stats</button>
+		</div>
+
+		<script src="manifold-prefetch.js"></script>
+		<script src="transition-router.js"></script>
+
+		<script>
+			// Update prefetch counter
+			function updatePrefetchCounter() {
+				const count = ManifoldPrefetch.prefetched.size;
+				document.getElementById(
+					"prefetchStatus"
+				).textContent = `Prefetched: ${count}`;
+			}
+
+			function updateStats() {
+				const stats = ManifoldPrefetch.getStats();
+				document.getElementById("statsContent").innerHTML = `
+                <strong>Total Prefetched:</strong> ${stats.total}<br>
+                <strong>URLs:</strong><br>
+                ${stats.prefetched.map((url) => `• ${url}`).join("<br>")}
+            `;
+			}
+
+			// Update counter every second
+			setInterval(updatePrefetchCounter, 1000);
+			setInterval(updateStats, 2000);
+
+			// Initial update
+			setTimeout(() => {
+				updateStats();
+				updatePrefetchCounter();
+			}, 500);
+		</script>
+	</body>
+</html>

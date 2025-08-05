@@ -1,0 +1,140 @@
+/* Manifold Transitions - Optional CSS */
+/* Users can include this file or write their own transitions */
+
+/* Set default transition duration via CSS custom property */
+:root {
+	--mf-transition-duration: 0.6s;
+}
+
+/* Automatic reduced motion support */
+.mf-reduced-motion * {
+	--mf-transition-duration: 0.2s !important;
+}
+
+.mf-reduced-motion .mf-intro,
+.mf-reduced-motion .mf-outro {
+	animation: mf-fade 0.2s ease-out !important;
+}
+
+/* Base transition styles */
+body.mf-intro {
+	animation: mf-slide-in-right var(--mf-transition-duration) ease-out;
+}
+
+body.mf-transitioning.mf-outro {
+	animation: mf-slide-out-left var(--mf-transition-duration) ease-in;
+}
+
+/* Slide animations */
+@keyframes mf-slide-in-right {
+	from {
+		transform: translateX(100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+@keyframes mf-slide-out-left {
+	from {
+		transform: translateX(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateX(-100%);
+		opacity: 0;
+	}
+}
+
+@keyframes mf-fade {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+/* Example: Custom element transitions */
+.my-card.mf-transitioning.mf-outro {
+	animation: mf-scale-out 0.3s ease-in;
+}
+
+.my-card.mf-intro {
+	animation: mf-scale-in 0.3s ease-out;
+}
+
+@keyframes mf-scale-out {
+	from {
+		transform: scale(1);
+		opacity: 1;
+	}
+	to {
+		transform: scale(0.8);
+		opacity: 0;
+	}
+}
+
+@keyframes mf-scale-in {
+	from {
+		transform: scale(0.8);
+		opacity: 0;
+	}
+	to {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+/* Alternative: Vertical slides */
+.vertical-nav body.mf-intro {
+	animation: mf-slide-in-down var(--mf-transition-duration) ease-out;
+}
+
+.vertical-nav body.mf-transitioning.mf-outro {
+	animation: mf-slide-out-up var(--mf-transition-duration) ease-in;
+}
+
+@keyframes mf-slide-in-down {
+	from {
+		transform: translateY(-100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+@keyframes mf-slide-out-up {
+	from {
+		transform: translateY(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateY(-100%);
+		opacity: 0;
+	}
+}
+
+/* Respects reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+	body.mf-intro,
+	body.mf-transitioning.mf-outro,
+	.mf-intro,
+	.mf-transitioning.mf-outro {
+		animation: mf-fade 0.2s ease-out !important;
+	}
+}
+
+/* For users who want NO animation at all */
+@media (prefers-reduced-motion: reduce) and (prefers-contrast: more) {
+	body.mf-intro,
+	body.mf-transitioning.mf-outro,
+	.mf-intro,
+	.mf-transitioning.mf-outro {
+		animation: none !important;
+	}
+}

@@ -1,0 +1,67 @@
+/* Simplified Transition System */
+@view-transition {
+	navigation: auto;
+}
+
+/* Base styles */
+.moveable {
+	position: absolute;
+	width: 100px;
+	height: 100px;
+	border-radius: 8px;
+	view-transition-name: my-box;
+}
+
+#page1,
+#page2 {
+	view-transition-name: page;
+}
+
+/* Simple directional classes */
+.slide-left-out ::view-transition-old(page) {
+	animation: slide-out-left 0.6s ease-in-out;
+}
+
+.slide-right-in ::view-transition-new(page) {
+	animation: slide-in-right 0.6s ease-in-out;
+}
+
+.slide-right-out ::view-transition-old(page) {
+	animation: slide-out-right 0.6s ease-in-out;
+}
+
+.slide-left-in ::view-transition-new(page) {
+	animation: slide-in-left 0.6s ease-in-out;
+}
+
+/* Box transitions only when page doesn't have transition name */
+::view-transition-old(my-box),
+::view-transition-new(my-box) {
+	animation-duration: 1.5s;
+	animation-timing-function: ease-in-out;
+}
+
+/* Animations */
+@keyframes slide-out-left {
+	to {
+		transform: translateX(-100%);
+	}
+}
+
+@keyframes slide-in-right {
+	from {
+		transform: translateX(100%);
+	}
+}
+
+@keyframes slide-out-right {
+	to {
+		transform: translateX(100%);
+	}
+}
+
+@keyframes slide-in-left {
+	from {
+		transform: translateX(-100%);
+	}
+}

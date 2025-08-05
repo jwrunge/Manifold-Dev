@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Hybrid Transitions Example</title>
+
+		<style>
+			/* View Transitions API styles (enhanced layer) */
+			@view-transition {
+				navigation: auto;
+			}
+
+			/* Named elements for View Transitions */
+			.hero {
+				view-transition-name: hero-section;
+			}
+
+			.card {
+				view-transition-name: card-section;
+			}
+
+			.counter {
+				view-transition-name: counter-display;
+			}
+
+			/* View Transitions timing */
+			::view-transition-old(hero-section),
+			::view-transition-new(hero-section) {
+				animation-duration: 0.8s;
+				animation-timing-function: ease-in-out;
+			}
+
+			::view-transition-old(counter-display),
+			::view-transition-new(counter-display) {
+				animation-duration: 0.3s;
+				animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+			}
+
+			/* Fallback: Class-based transitions */
+			.hero.mf-transitioning {
+				animation: hero-pulse 0.8s ease-in-out;
+			}
+
+			.counter.mf-transitioning {
+				animation: counter-bounce 0.3s ease-out;
+			}
+
+			@keyframes hero-pulse {
+				0%,
+				100% {
+					transform: scale(1);
+				}
+				50% {
+					transform: scale(1.02);
+				}
+			}
+
+			@keyframes counter-bounce {
+				0% {
+					transform: scale(1);
+				}
+				50% {
+					transform: scale(1.1);
+				}
+				100% {
+					transform: scale(1);
+				}
+			}
+
+			/* Page transitions (cross-document) */
+			body.mf-intro {
+				animation: page-enter 0.6s ease-out;
+			}
+
+			body.mf-transitioning.mf-outro {
+				animation: page-exit 0.6s ease-in;
+			}
+
+			@keyframes page-enter {
+				from {
+					opacity: 0;
+					transform: translateY(20px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+
+			@keyframes page-exit {
+				from {
+					opacity: 1;
+					transform: translateY(0);
+				}
+				to {
+					opacity: 0;
+					transform: translateY(-20px);
+				}
+			}
+
+			/* Basic styling */
+			body {
+				font-family: system-ui, sans-serif;
+				margin: 0;
+				padding: 2rem;
+				background: #f5f5f5;
+			}
+
+			.hero {
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				color: white;
+				padding: 3rem;
+				border-radius: 1rem;
+				margin-bottom: 2rem;
+				text-align: center;
+			}
+
+			.card {
+				background: white;
+				border-radius: 0.5rem;
+				padding: 2rem;
+				margin: 1rem 0;
+				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+			}
+
+			.counter {
+				font-size: 2rem;
+				font-weight: bold;
+				color: #667eea;
+				text-align: center;
+				padding: 1rem;
+				background: white;
+				border-radius: 0.5rem;
+				display: inline-block;
+				min-width: 100px;
+			}
+
+			button {
+				background: #667eea;
+				color: white;
+				border: none;
+				padding: 0.75rem 1.5rem;
+				border-radius: 0.5rem;
+				cursor: pointer;
+				font-size: 1rem;
+				margin: 0.5rem;
+			}
+
+			button:hover {
+				background: #5a67d8;
+			}
+
+			.controls {
+				text-align: center;
+				margin: 2rem 0;
+			}
+
+			.toggle {
+				background: #4a5568;
+				color: white;
+				border: none;
+				padding: 0.5rem 1rem;
+				border-radius: 0.25rem;
+				cursor: pointer;
+				font-size: 0.875rem;
+				margin: 0.5rem;
+			}
+
+			.feature-list {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+				gap: 1rem;
+				margin: 2rem 0;
+			}
+
+			.feature {
+				background: white;
+				padding: 1.5rem;
+				border-radius: 0.5rem;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+		</style>
+	</head>
+	<body>
+		<div class="hero">
+			<h1>🎬 Hybrid Transition System</h1>
+			<p>
+				Best of both worlds: View Transitions API + Class-based
+				fallbacks
+			</p>
+		</div>
+
+		<div class="card">
+			<h2>Interactive Counter Example</h2>
+			<div class="controls">
+				<div class="counter" id="counter">0</div>
+				<br />
+				<button onclick="updateCounter(1)">+1</button>
+				<button onclick="updateCounter(-1)">-1</button>
+				<button onclick="updateCounter(10)">+10</button>
+				<button onclick="resetCounter()">Reset</button>
+			</div>
+
+			<p><strong>What's happening:</strong></p>
+			<ul>
+				<li>
+					If View Transitions API is supported → Smooth morphing
+					counter
+				</li>
+				<li>If not supported → Class-based bounce animation</li>
+				<li>
+					User can disable with
+					<code>data-mf-no-view-transitions</code>
+				</li>
+			</ul>
+		</div>
+
+		<div class="card">
+			<h2>Navigation</h2>
+			<p>
+				<a href="page1.html">Go to Page 1</a> (Cross-document
+				transition)
+			</p>
+			<p><a href="index.html">Back to Index</a></p>
+
+			<div class="controls">
+				<button class="toggle" onclick="toggleViewTransitions()">
+					<span id="vt-status">View Transitions: ON</span>
+				</button>
+				<button class="toggle" onclick="toggleReducedMotion()">
+					<span id="motion-status">Reduced Motion: OFF</span>
+				</button>
+			</div>
+		</div>
+
+		<div class="feature-list">
+			<div class="feature">
+				<h3>🚀 Enhanced</h3>
+				<p>
+					View Transitions API provides native browser morphing when
+					supported.
+				</p>
+			</div>
+
+			<div class="feature">
+				<h3>🔄 Fallback</h3>
+				<p>
+					Class-based animations work everywhere, even without
+					JavaScript.
+				</p>
+			</div>
+
+			<div class="feature">
+				<h3>♿ Accessible</h3>
+				<p>Respects prefers-reduced-motion automatically.</p>
+			</div>
+
+			<div class="feature">
+				<h3>🎛️ Flexible</h3>
+				<p>Users control exactly what transitions they want.</p>
+			</div>
+		</div>
+
+		<script src="transition-router.js"></script>
+		<script>
+			let count = 0;
+
+			function updateCounter(delta) {
+				count += delta;
+
+				// This is where Manifold would integrate:
+				// ManifoldTransitions.stateEffect(() => {
+				//     document.getElementById('counter').textContent = count;
+				// }, document.getElementById('counter'));
+
+				// For demo, we'll simulate it:
+				const counterEl = document.getElementById("counter");
+
+				if (
+					ManifoldTransitions.supportsViewTransitions() &&
+					!document.documentElement.hasAttribute(
+						"data-mf-no-view-transitions"
+					)
+				) {
+					document.startViewTransition(() => {
+						counterEl.textContent = count;
+					});
+				} else {
+					// Fallback: class-based animation
+					counterEl.classList.add("mf-transitioning");
+					counterEl.textContent = count;
+
+					setTimeout(() => {
+						counterEl.classList.remove("mf-transitioning");
+					}, 300);
+				}
+			}
+
+			function resetCounter() {
+				count = 0;
+				updateCounter(0);
+			}
+
+			function toggleViewTransitions() {
+				const html = document.documentElement;
+				const status = document.getElementById("vt-status");
+
+				if (html.hasAttribute("data-mf-no-view-transitions")) {
+					html.removeAttribute("data-mf-no-view-transitions");
+					status.textContent = "View Transitions: ON";
+				} else {
+					html.setAttribute("data-mf-no-view-transitions", "");
+					status.textContent = "View Transitions: OFF";
+				}
+			}
+
+			function toggleReducedMotion() {
+				const html = document.documentElement;
+				const status = document.getElementById("motion-status");
+
+				if (html.classList.contains("mf-reduced-motion")) {
+					html.classList.remove("mf-reduced-motion");
+					status.textContent = "Reduced Motion: OFF";
+				} else {
+					html.classList.add("mf-reduced-motion");
+					status.textContent = "Reduced Motion: ON";
+				}
+			}
+		</script>
+	</body>
+</html>

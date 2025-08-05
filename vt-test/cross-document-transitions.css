@@ -1,0 +1,157 @@
+/* Manifold View Transitions - Solving the Default Fade Problem */
+
+/* Enable cross-document view transitions */
+@view-transition {
+	navigation: auto;
+}
+
+/* 
+CRITICAL: Override the default page fade 
+By default, View Transitions API applies fade-in/fade-out to the entire page.
+We disable this and only transition named elements.
+*/
+
+/* Disable default root transition - prevents page flash */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none !important;
+}
+
+/* Common persistent elements that should NOT flash */
+header,
+nav,
+.navbar,
+.header,
+.sidebar,
+.footer,
+.persistent {
+	view-transition-name: none; /* Explicitly opt out */
+}
+
+/* Alternative: Give persistent elements stable names to keep them */
+.site-header {
+	view-transition-name: site-header;
+}
+
+.site-nav {
+	view-transition-name: site-nav;
+}
+
+.site-footer {
+	view-transition-name: site-footer;
+}
+
+/* Persistent elements don't animate - they just stay put */
+::view-transition-old(site-header),
+::view-transition-new(site-header),
+::view-transition-old(site-nav),
+::view-transition-new(site-nav),
+::view-transition-old(site-footer),
+::view-transition-new(site-footer) {
+	animation: none; /* No animation = no flash */
+}
+
+/* Only animate the main content area */
+main,
+.main-content,
+.page-content {
+	view-transition-name: main-content;
+}
+
+/* Custom transition for main content only */
+::view-transition-old(main-content) {
+	animation: content-fade-out 0.3s ease-in;
+}
+
+::view-transition-new(main-content) {
+	animation: content-fade-in 0.3s ease-out;
+}
+
+@keyframes content-fade-out {
+	from {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+}
+
+@keyframes content-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Specific UI elements that should transition smoothly */
+.hero-section {
+	view-transition-name: hero;
+}
+
+.article-title {
+	view-transition-name: title;
+}
+
+.user-avatar {
+	view-transition-name: avatar;
+}
+
+/* Custom transitions for specific elements */
+::view-transition-old(hero),
+::view-transition-new(hero) {
+	animation-duration: 0.5s;
+	animation-timing-function: ease-in-out;
+}
+
+::view-transition-old(title),
+::view-transition-new(title) {
+	animation-duration: 0.4s;
+	animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Fallback for browsers without View Transitions support */
+@supports not (view-transition-name: test) {
+	/* Use class-based transitions as fallback */
+	main.mf-intro {
+		animation: content-fade-in 0.3s ease-out;
+	}
+
+	main.mf-transitioning.mf-outro {
+		animation: content-fade-out 0.3s ease-in;
+	}
+}
+
+/* Reduced motion: minimal transitions */
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation-duration: 0.1s !important;
+	}
+
+	/* For accessibility, just use opacity changes */
+	::view-transition-old(main-content) {
+		animation: simple-fade-out 0.1s ease;
+	}
+
+	::view-transition-new(main-content) {
+		animation: simple-fade-in 0.1s ease;
+	}
+
+	@keyframes simple-fade-out {
+		to {
+			opacity: 0;
+		}
+	}
+
+	@keyframes simple-fade-in {
+		from {
+			opacity: 0;
+		}
+	}
+}

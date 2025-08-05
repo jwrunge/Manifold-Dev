@@ -42,7 +42,7 @@ export interface ExpressionResult {
 	_isArrowFunction?: boolean;
 }
 
-export const _evaluateExpression = (expr?: string): ExpressionResult => {
+const _evaluateExpression = (expr?: string): ExpressionResult => {
 	expr = expr?.trim();
 	if (!expr) return { fn: () => undefined, _stateRefs: new Set() };
 
@@ -306,4 +306,4 @@ export const _evaluateExpression = (expr?: string): ExpressionResult => {
 	);
 };
 
-export const evaluateExpression = _evaluateExpression;
+export default _evaluateExpression;

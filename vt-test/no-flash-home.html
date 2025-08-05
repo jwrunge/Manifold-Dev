@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>No Flash Example - Home</title>
+		<meta name="view-transition" content="same-origin" />
+		<link rel="stylesheet" href="cross-document-transitions.css" />
+
+		<style>
+			body {
+				margin: 0;
+				font-family: system-ui, sans-serif;
+				background: #f5f5f5;
+			}
+
+			/* Persistent header - should NOT flash */
+			.site-header {
+				background: #2d3748;
+				color: white;
+				padding: 1rem 2rem;
+				position: sticky;
+				top: 0;
+				z-index: 100;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+
+			.site-nav {
+				background: #4a5568;
+				padding: 0.5rem 2rem;
+				display: flex;
+				gap: 2rem;
+			}
+
+			.site-nav a {
+				color: white;
+				text-decoration: none;
+				padding: 0.5rem 1rem;
+				border-radius: 0.25rem;
+			}
+
+			.site-nav a:hover,
+			.site-nav a.active {
+				background: #667eea;
+			}
+
+			/* Main content - SHOULD transition */
+			.main-content {
+				padding: 2rem;
+				max-width: 800px;
+				margin: 0 auto;
+			}
+
+			.hero-section {
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				color: white;
+				padding: 4rem 2rem;
+				border-radius: 1rem;
+				text-align: center;
+				margin-bottom: 2rem;
+			}
+
+			.feature-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+				gap: 1.5rem;
+				margin: 2rem 0;
+			}
+
+			.feature {
+				background: white;
+				padding: 2rem;
+				border-radius: 0.5rem;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+
+			.feature h3 {
+				color: #2d3748;
+				margin-top: 0;
+			}
+
+			/* Persistent footer - should NOT flash */
+			.site-footer {
+				background: #2d3748;
+				color: white;
+				text-align: center;
+				padding: 2rem;
+				margin-top: 4rem;
+			}
+
+			/* Demo: These elements should transition smoothly */
+			.article-title {
+				color: #2d3748;
+				margin-bottom: 1rem;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Persistent header - view-transition-name: site-header -->
+		<header class="site-header">
+			<h1>🚀 My Awesome Site</h1>
+			<p>Common header that should never flash</p>
+		</header>
+
+		<!-- Persistent navigation - view-transition-name: site-nav -->
+		<nav class="site-nav">
+			<a href="no-flash-home.html" class="active">Home</a>
+			<a href="no-flash-about.html">About</a>
+			<a href="no-flash-contact.html">Contact</a>
+			<a href="no-flash-blog.html">Blog</a>
+		</nav>
+
+		<!-- Main content area - view-transition-name: main-content -->
+		<main class="main-content">
+			<!-- Hero section - view-transition-name: hero -->
+			<section class="hero-section">
+				<h1 class="article-title">Welcome Home! 🏠</h1>
+				<p>
+					This is the home page. Notice how the header and nav don't
+					flash when you navigate!
+				</p>
+				<p>Try clicking the navigation links above.</p>
+			</section>
+
+			<div class="feature-grid">
+				<div class="feature">
+					<h3>✨ No Flash</h3>
+					<p>
+						Header and navigation stay perfectly stable during page
+						transitions.
+					</p>
+				</div>
+
+				<div class="feature">
+					<h3>🎬 Smooth Content</h3>
+					<p>
+						Only the main content area transitions, creating a
+						smooth app-like experience.
+					</p>
+				</div>
+
+				<div class="feature">
+					<h3>🔧 Configurable</h3>
+					<p>
+						You control exactly which elements persist and which
+						transition.
+					</p>
+				</div>
+
+				<div class="feature">
+					<h3>📱 Fast</h3>
+					<p>No JavaScript overhead, pure CSS-driven transitions.</p>
+				</div>
+			</div>
+
+			<div
+				style="
+					background: white;
+					padding: 2rem;
+					border-radius: 0.5rem;
+					margin: 2rem 0;
+				"
+			>
+				<h2 class="article-title">How It Works</h2>
+				<ol>
+					<li>
+						<strong>Disable default fade:</strong>
+						<code
+							>::view-transition-old(root) { animation: none;
+							}</code
+						>
+					</li>
+					<li>
+						<strong>Persistent elements:</strong> Give headers/navs
+						stable <code>view-transition-name</code>s
+					</li>
+					<li>
+						<strong>No animation:</strong>
+						<code>animation: none</code> on persistent elements
+					</li>
+					<li>
+						<strong>Content transitions:</strong> Only
+						<code>main-content</code> gets transition animations
+					</li>
+				</ol>
+			</div>
+		</main>
+
+		<!-- Persistent footer - view-transition-name: site-footer -->
+		<footer class="site-footer">
+			<p>&copy; 2024 My Awesome Site. Footer also doesn't flash!</p>
+		</footer>
+
+		<script src="transition-router.js"></script>
+	</body>
+</html>

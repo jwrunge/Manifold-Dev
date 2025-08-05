@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Database-Safe Prefetch Example</title>
+
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+			}
+
+			.safe {
+				border-left: 4px solid #48bb78;
+			}
+			.unsafe {
+				border-left: 4px solid #f56565;
+			}
+			.warning {
+				border-left: 4px solid #ed8936;
+			}
+
+			.example {
+				background: #f7fafc;
+				padding: 1rem;
+				margin: 1rem 0;
+				border-radius: 0.25rem;
+			}
+
+			.links {
+				display: grid;
+				gap: 1rem;
+				margin: 1rem 0;
+			}
+
+			.link-example {
+				padding: 1rem;
+				border-radius: 0.25rem;
+				border: 1px solid #e2e8f0;
+			}
+
+			.safe-link {
+				background: #f0fff4;
+			}
+			.unsafe-link {
+				background: #fed7d7;
+			}
+			.warning-link {
+				background: #fefcbf;
+			}
+
+			code {
+				background: #edf2f7;
+				padding: 0.2rem 0.4rem;
+				border-radius: 0.25rem;
+				font-family: "Monaco", monospace;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>🗄️ Database-Safe Prefetch Patterns</h1>
+		<p>
+			How to safely prefetch pages in database-driven applications without
+			triggering unintended side effects.
+		</p>
+
+		<div class="example safe">
+			<h2>✅ Safe Links (Will be prefetched)</h2>
+			<div class="links">
+				<div class="link-example safe-link">
+					<a href="/dashboard">Dashboard</a>
+					<br /><small>Read-only page - safe to prefetch</small>
+				</div>
+
+				<div class="link-example safe-link">
+					<a href="/user/profile/123">User Profile</a>
+					<br /><small>Displays data without modifying it</small>
+				</div>
+
+				<div class="link-example safe-link">
+					<a href="/orders/history">Order History</a>
+					<br /><small>Historical data - no side effects</small>
+				</div>
+
+				<div class="link-example safe-link">
+					<a href="/products/456">Product Details</a>
+					<br /><small>Product information - read-only</small>
+				</div>
+			</div>
+		</div>
+
+		<div class="example unsafe">
+			<h2>❌ Unsafe Links (Automatically blocked from prefetch)</h2>
+			<div class="links">
+				<div class="link-example unsafe-link">
+					<a href="/user/delete/123">Delete User</a>
+					<br /><small
+						>Contains "delete" in URL - automatically blocked</small
+					>
+				</div>
+
+				<div class="link-example unsafe-link">
+					<a href="/orders/cancel?id=456">Cancel Order</a>
+					<br /><small>Action parameter detected - blocked</small>
+				</div>
+
+				<div class="link-example unsafe-link">
+					<a href="/admin/reset-database">Reset Database</a>
+					<br /><small>Admin action - definitely blocked!</small>
+				</div>
+
+				<div class="link-example unsafe-link">
+					<a href="/logout">Logout</a>
+					<br /><small>Authentication action - blocked</small>
+				</div>
+			</div>
+		</div>
+
+		<div class="example warning">
+			<h2>⚠️ Manually Disabled (Explicit control)</h2>
+			<div class="links">
+				<div class="link-example warning-link">
+					<a href="/checkout" data-mf-no-prefetch>Checkout</a>
+					<br /><small
+						>Manually disabled with
+						<code>data-mf-no-prefetch</code></small
+					>
+				</div>
+
+				<div class="link-example warning-link">
+					<a href="/api/upload" data-mf-no-prefetch>File Upload</a>
+					<br /><small
+						>Custom business logic requires no prefetch</small
+					>
+				</div>
+
+				<div class="link-example warning-link">
+					<a href="/reports/generate" data-mf-no-prefetch
+						>Generate Report</a
+					>
+					<br /><small
+						>Expensive operation - disabled by choice</small
+					>
+				</div>
+			</div>
+		</div>
+
+		<div class="example">
+			<h2>🔧 Server-Side Best Practices</h2>
+			<p>Here's how your server should handle prefetch requests:</p>
+
+			<pre><code>// Detect prefetch requests
+const isPrefetch = req.headers['x-purpose'] === 'prefetch';
+
+if (isPrefetch) {
+    // For prefetch: minimal response, no side effects
+    return {
+        user: { id, name, avatar }, // Basic info only
+        // Skip: analytics, "last seen" updates, expensive queries
+    };
+} else {
+    // For real visits: full response + side effects
+    logPageView(userId, pageId);
+    updateLastActivity(userId);
+    return {
+        user: getFullUserData(userId),
+        recommendations: getPersonalizedContent(userId)
+    };
+}</code></pre>
+		</div>
+
+		<div class="example">
+			<h2>📊 What Gets Blocked Automatically</h2>
+			<ul>
+				<li>
+					<strong>URL patterns:</strong> <code>/delete</code>,
+					<code>/create</code>, <code>/edit</code>,
+					<code>/submit</code>
+				</li>
+				<li>
+					<strong>Query params:</strong> <code>?action=</code>,
+					<code>&confirm=</code>, <code>?delete=</code>
+				</li>
+				<li>
+					<strong>External links:</strong> Different domain/subdomain
+				</li>
+				<li>
+					<strong>File downloads:</strong> <code>.pdf</code>,
+					<code>.zip</code>, etc.
+				</li>
+				<li>
+					<strong>Form actions:</strong> Links inside
+					<code>&lt;form&gt;</code> tags
+				</li>
+			</ul>
+		</div>
+
+		<div class="example">
+			<h2>🎯 The Golden Rule</h2>
+			<p><strong>Prefetch should never change server state.</strong></p>
+			<p>
+				If a URL might insert, update, or delete data - even indirectly
+				- it should not be prefetched.
+			</p>
+
+			<h3>Safe Patterns:</h3>
+			<ul>
+				<li>📖 Reading user profiles, posts, products</li>
+				<li>📋 Displaying lists, dashboards, reports</li>
+				<li>🔍 Search results, filtered views</li>
+				<li>📄 Static content, help pages</li>
+			</ul>
+
+			<h3>Unsafe Patterns:</h3>
+			<ul>
+				<li>🗑️ Delete, remove, cancel actions</li>
+				<li>✏️ Create, edit, update forms</li>
+				<li>💳 Checkout, payment, billing</li>
+				<li>🔐 Login, logout, authentication</li>
+				<li>⚙️ Settings changes, admin actions</li>
+			</ul>
+		</div>
+
+		<script src="manifold-prefetch.js"></script>
+		<script>
+			// Monitor prefetch activity
+			setInterval(() => {
+				const stats = ManifoldPrefetch.getStats();
+				console.log(
+					`Prefetched ${stats.total} pages safely`,
+					stats.prefetched
+				);
+			}, 5000);
+		</script>
+	</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>VT Test - Page 1</title>
+		<meta name="view-transition" content="same-origin" />
+		<link rel="stylesheet" href="transitions.css" />
+	</head>
+	<body>
+		<section id="page1">
+			<h1>Page 1</h1>
+			<p>This is the second page with a moved box.</p>
+
+			<a href="index.html">Go back</a>
+
+			<div class="moveable" onclick="makeBigPurple()"></div>
+
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+			<br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br /><br />
+
+			<a href="index.html">Go back</a>
+		</section>
+
+		<script>
+			// Set slide direction for navigation BACK to index
+			document.documentElement.style.setProperty(
+				"--slide-out-direction",
+				"slide-out-right"
+			);
+			document.documentElement.style.setProperty(
+				"--slide-in-direction",
+				"slide-in-left"
+			);
+
+			function makeBigPurple() {
+				console.log("Making box big and purple");
+
+				// Disable page transition BEFORE starting view transition
+				const page = document.getElementById("page1");
+				page.style.viewTransitionName = "none";
+
+				document
+					.startViewTransition(() => {
+						const box = document.querySelector(".moveable");
+						box.classList.toggle("big-purple");
+					})
+					.finished.then(() => {
+						// Restore page transition name after transition completes
+						page.style.viewTransitionName = "";
+					});
+			}
+		</script>
+
+		<style>
+			/* Page-specific styles */
+			.moveable {
+				top: 20rem;
+				left: 50px;
+				background-color: lightcoral;
+
+				&.big-purple {
+					scale: 1.5;
+					background-color: purple;
+				}
+			}
+		</style>
+	</body>
+</html>
