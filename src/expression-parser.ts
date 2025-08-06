@@ -172,12 +172,14 @@ const _evaluateExpression = (expr?: string): ExpressionResult => {
 		);
 	}
 
-	if (expr.match(/^!\s*(.+)$/)?.[1]) {
-		const n = _evaluateExpression(RegExp.$1);
+	const notMatch = expr.match(/^!\s*(.+)$/);
+	if (notMatch?.[1]) {
+		const n = _evaluateExpression(notMatch[1]);
 		return _createResult((x: any) => !n.fn(x), n._stateRefs);
 	}
-	if (expr.match(/^-\s*(.+)$/)?.[1]) {
-		const n = _evaluateExpression(RegExp.$1);
+	const negMatch = expr.match(/^-\s*(.+)$/);
+	if (negMatch?.[1]) {
+		const n = _evaluateExpression(negMatch[1]);
 		return _createResult((x: any) => -(n.fn(x) as number), n._stateRefs);
 	}
 

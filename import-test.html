@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Import Test</title>
+</head>
+<body>
+    <h1>Import Test</h1>
+    <script type="module">
+        console.log('=== Testing direct State import ===');
+        
+        try {
+            const stateModule = await import('./src/State.ts');
+            console.log('State module loaded:', stateModule);
+            console.log('State class:', stateModule.State);
+            console.log('State._createComputed:', stateModule.State._createComputed);
+            console.log('typeof State._createComputed:', typeof stateModule.State._createComputed);
+            
+            // Test the method
+            const testState = stateModule.State._createComputed(() => 'test');
+            console.log('✅ _createComputed worked:', testState);
+            
+        } catch (error) {
+            console.error('❌ Import failed:', error);
+        }
+        
+        console.log('=== Testing index import ===');
+        try {
+            const indexModule = await import('./src/index.ts');
+            console.log('Index module loaded:', indexModule);
+            console.log('state function:', indexModule.state);
+            console.log('register function:', indexModule.register);
+        } catch (error) {
+            console.error('❌ Index import failed:', error);
+        }
+    </script>
+</body>
+</html>

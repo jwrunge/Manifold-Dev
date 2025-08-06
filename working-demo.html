@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Working Manifold Demo</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+			}
+			.section {
+				margin: 2rem 0;
+				padding: 1rem;
+				border: 1px solid #ddd;
+				border-radius: 8px;
+			}
+			button {
+				padding: 8px 16px;
+				margin: 4px;
+				background: #007acc;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+			button:hover {
+				background: #005999;
+			}
+			input {
+				padding: 8px;
+				margin: 4px;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+			}
+			.counter {
+				font-size: 2rem;
+				font-weight: bold;
+				text-align: center;
+				margin: 1rem 0;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>🚀 Manifold Framework - Working Demo</h1>
+
+		<div class="section">
+			<h2>✅ What Works Currently</h2>
+			<p>
+				Based on the actual implementation, here's what we can
+				demonstrate:
+			</p>
+
+			<div class="counter">
+				Counter: <span id="counter-display">0</span>
+			</div>
+
+			<div style="text-align: center">
+				<button id="decrement">➖ Decrement</button>
+				<button id="reset">🔄 Reset</button>
+				<button id="increment">➕ Increment</button>
+			</div>
+
+			<div id="status"></div>
+		</div>
+
+		<div class="section">
+			<h2>👤 User State</h2>
+			<div>
+				<label
+					>Name:
+					<input type="text" id="name-input" placeholder="Enter name"
+				/></label>
+			</div>
+			<div>
+				<label
+					>Age:
+					<input type="number" id="age-input" placeholder="Enter age"
+				/></label>
+			</div>
+			<div id="user-display"></div>
+		</div>
+
+		<div class="section">
+			<h2>📝 Todo List</h2>
+			<div>
+				<input type="text" id="new-todo" placeholder="Add a todo..." />
+				<button id="add-todo">Add</button>
+			</div>
+			<div id="todo-list"></div>
+			<div id="todo-stats"></div>
+		</div>
+
+		<script type="module">
+			import { state, derived } from "./src/index.js";
+
+			// Create reactive states
+			const counter = state(0);
+			const user = state({ name: "", age: 0 });
+			const todos = state([
+				{ id: 1, text: "Learn Manifold", completed: false },
+				{ id: 2, text: "Build something cool", completed: false },
+			]);
+
+			// Create derived/computed states
+			const userGreeting = derived(() => {
+				const u = user.value;
+				return u.name
+					? `Hello, ${u.name}${u.age ? ` (${u.age} years old)` : ""}!`
+					: "";
+			});
+
+			const todoStats = derived(() => {
+				const items = todos.value;
+				const completed = items.filter((t) => t.completed).length;
+				return `${completed}/${items.length} completed`;
+			});
+
+			const counterStatus = derived(() => {
+				const count = counter.value;
+				if (count === 0) return "Zero";
+				if (count > 10) return "High!";
+				if (count > 0) return "Positive";
+				return "Negative";
+			});
+
+			// DOM Elements
+			const counterDisplay = document.getElementById("counter-display");
+			const statusDiv = document.getElementById("status");
+			const nameInput = document.getElementById("name-input");
+			const ageInput = document.getElementById("age-input");
+			const userDisplay = document.getElementById("user-display");
+			const newTodoInput = document.getElementById("new-todo");
+			const todoListDiv = document.getElementById("todo-list");
+			const todoStatsDiv = document.getElementById("todo-stats");
+
+			// Set up reactive effects
+			counter.effect((value) => {
+				counterDisplay.textContent = value;
+			});
+
+			counterStatus.effect((status) => {
+				statusDiv.innerHTML = `<p><strong>Status:</strong> ${status}</p>`;
+			});
+
+			userGreeting.effect((greeting) => {
+				userDisplay.innerHTML = greeting
+					? `<p>${greeting}</p>`
+					: "<p>Enter your details above</p>";
+			});
+
+			todoStats.effect((stats) => {
+				todoStatsDiv.innerHTML = `<p><strong>Progress:</strong> ${stats}</p>`;
+			});
+
+			todos.effect((items) => {
+				todoListDiv.innerHTML = items
+					.map(
+						(todo) => `
+                <div style="margin: 8px 0; padding: 8px; background: ${
+					todo.completed ? "#e6ffe6" : "#f9f9f9"
+				}; border-radius: 4px;">
+                    <label>
+                        <input type="checkbox" ${
+							todo.completed ? "checked" : ""
+						} 
+                               onchange="toggleTodo(${todo.id}, this.checked)">
+                        <span style="${
+							todo.completed
+								? "text-decoration: line-through;"
+								: ""
+						}">${todo.text}</span>
+                    </label>
+                    <button onclick="removeTodo(${
+						todo.id
+					})" style="float: right; background: #dc3545;">🗑️</button>
+                </div>
+            `
+					)
+					.join("");
+			});
+
+			// Event handlers
+			document.getElementById("increment").onclick = () =>
+				counter.value++;
+			document.getElementById("decrement").onclick = () =>
+				counter.value--;
+			document.getElementById("reset").onclick = () =>
+				(counter.value = 0);
+
+			nameInput.oninput = (e) => {
+				user.value = { ...user.value, name: e.target.value };
+			};
+
+			ageInput.oninput = (e) => {
+				user.value = {
+					...user.value,
+					age: parseInt(e.target.value) || 0,
+				};
+			};
+
+			let nextId = 3;
+			document.getElementById("add-todo").onclick = () => {
+				const text = newTodoInput.value.trim();
+				if (text) {
+					todos.value = [
+						...todos.value,
+						{ id: nextId++, text, completed: false },
+					];
+					newTodoInput.value = "";
+				}
+			};
+
+			newTodoInput.onkeypress = (e) => {
+				if (e.key === "Enter") {
+					document.getElementById("add-todo").click();
+				}
+			};
+
+			// Global functions for inline handlers
+			window.toggleTodo = (id, completed) => {
+				todos.value = todos.value.map((todo) =>
+					todo.id === id ? { ...todo, completed } : todo
+				);
+			};
+
+			window.removeTodo = (id) => {
+				todos.value = todos.value.filter((todo) => todo.id !== id);
+			};
+
+			// Initialize
+			console.log("✅ Manifold demo initialized!");
+			console.log("States:", { counter, user, todos });
+			console.log("Derived states:", {
+				userGreeting,
+				todoStats,
+				counterStatus,
+			});
+		</script>
+	</body>
+</html>

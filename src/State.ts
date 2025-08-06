@@ -22,11 +22,19 @@ const _trigger = (path: string) => {
 	_flush();
 };
 
+const _runningEffects = new Set<Effect>(); // Track currently running effects
+
 const _flush = () => {
 	if (!_pending.size) return;
 	const effects = [..._pending];
 	_pending.clear();
-	for (const effect of effects) effect._run();
+	for (const effect of effects) {
+		if (_runningEffects.has(effect)) {
+			console.warn('Circular dependency detected, skipping effect to prevent infinite loop');
+			continue;
+		}
+		effect._run();
+	}
 };
 
 const _proxy = (obj: any, prefix = ""): any => {
@@ -68,14 +76,21 @@ class Effect {
 
 	_run() {
 		if (!this._active) return;
+		if (_runningEffects.has(this)) {
+			console.warn('Circular dependency detected in effect, preventing recursion');
+			return;
+		}
+		
 		this._deps.forEach((cleanup) => cleanup());
 		this._deps.clear();
 		const prev = _currentEffect;
 		_currentEffect = this;
+		_runningEffects.add(this);
 		try {
 			this.fn();
 		} finally {
 			_currentEffect = prev;
+			_runningEffects.delete(this);
 		}
 	}
 
@@ -93,6 +108,8 @@ const _globalStore = _proxy({ _states: {} });
 export class State<T = unknown> {
 	_name: string;
 	#derive?: () => T;
+	#cachedValue?: T;
+	#isComputed = false;
 
 	static #registry = new Map<string, State<unknown>>();
 
@@ -102,15 +119,18 @@ export class State<T = unknown> {
 		State.#registry.set(this._name, this);
 	}
 
-	static _createComputed<T>(deriveFn: () => T, name?: string): State<T> {
+	static createComputed<T>(deriveFn: () => T, name?: string): State<T> {
 		const state = new State(undefined as any, name);
 		state.#derive = deriveFn;
+		state.#isComputed = true;
+		
 		effect(() => {
 			const newValue = deriveFn();
 			if (!_isEqual(_globalStore._states[state._name], newValue)) {
 				_globalStore._states[state._name] = newValue;
 			}
 		});
+		
 		return state;
 	}
 

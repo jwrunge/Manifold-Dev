@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Manifold Diagnostic - UI Update Issue</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+			}
+			.test {
+				margin: 1rem 0;
+				padding: 1rem;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+			}
+			.pass {
+				border-color: #28a745;
+				background: #d4edda;
+			}
+			.fail {
+				border-color: #dc3545;
+				background: #f8d7da;
+			}
+			.warn {
+				border-color: #ffc107;
+				background: #fff3cd;
+			}
+			pre {
+				background: #f8f9fa;
+				padding: 1rem;
+				border-radius: 4px;
+				overflow: auto;
+				font-size: 12px;
+			}
+			button {
+				padding: 8px 16px;
+				margin: 4px;
+				background: #007acc;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>🔍 Manifold Diagnostic - UI Update Issue</h1>
+
+		<div class="test">
+			<h3>Step 1: Basic State + Effect (Control Test)</h3>
+			<p>Counter: <span id="manual-counter">0</span></p>
+			<button id="manual-increment">Manual Increment</button>
+			<p>
+				This should work - it's manual DOM manipulation with state
+				effects.
+			</p>
+			<div id="step1-status">Testing...</div>
+		</div>
+
+		<div class="test">
+			<h3>Step 2: Named State Resolution</h3>
+			<button id="test-state-resolution">Test State Resolution</button>
+			<pre id="state-resolution-log"></pre>
+		</div>
+
+		<div class="test">
+			<h3>Step 3: Expression Parser with Named States</h3>
+			<button id="test-expression-resolution">
+				Test Expression with Named States
+			</button>
+			<pre id="expression-log"></pre>
+		</div>
+
+		<div class="test">
+			<h3>Step 4: Registry Processing Investigation</h3>
+			<div id="registry-test-target">
+				<p>Name: ${user.name}</p>
+				<p>Counter: ${counter}</p>
+			</div>
+			<button id="test-registry">Register & Inspect</button>
+			<pre id="registry-log"></pre>
+		</div>
+
+		<div class="test">
+			<h3>Step 5: Text Node Processing Deep Dive</h3>
+			<div id="text-node-target">
+				Hello ${user.name}, counter is ${counter}!
+			</div>
+			<button id="test-text-processing">Process Text Nodes</button>
+			<button id="update-states">Update States</button>
+			<pre id="text-processing-log"></pre>
+		</div>
+
+		<script type="module">
+			import { state, register } from "./src/index.js";
+			import _evaluateExpression from "./src/expression-parser.js";
+
+			// Create named states
+			window.user = state({ name: "John Doe", age: 25 }, "user");
+			window.counter = state(5, "counter");
+
+			function log(elementId, message) {
+				const element = document.getElementById(elementId);
+				element.textContent += message + "\n";
+				console.log(message);
+			}
+
+			function clearLog(elementId) {
+				document.getElementById(elementId).textContent = "";
+			}
+
+			// Step 1: Basic manual control test
+			const manualCounterDisplay =
+				document.getElementById("manual-counter");
+			const step1Status = document.getElementById("step1-status");
+
+			window.counter.effect((value) => {
+				manualCounterDisplay.textContent = value;
+				console.log("Manual counter effect fired:", value);
+			});
+
+			document.getElementById("manual-increment").onclick = () => {
+				window.counter.value++;
+				console.log(
+					"Manual increment - new value:",
+					window.counter.value
+				);
+			};
+
+			step1Status.innerHTML =
+				'<span style="color: green;">✅ Manual control working</span>';
+			step1Status.parentElement.classList.add("pass");
+
+			// Step 2: State resolution test
+			document.getElementById("test-state-resolution").onclick = () => {
+				clearLog("state-resolution-log");
+
+				log("state-resolution-log", "=== Testing State Resolution ===");
+				log(
+					"state-resolution-log",
+					`user state name: "${window.user._name}"`
+				);
+				log(
+					"state-resolution-log",
+					`counter state name: "${window.counter._name}"`
+				);
+
+				// Test State.get() method
+				import("./src/State.js").then((StateModule) => {
+					const State = StateModule.State;
+					log(
+						"state-resolution-log",
+						"\n=== Testing State.get() ==="
+					);
+					const userState = State.get("user");
+					const counterState = State.get("counter");
+
+					log(
+						"state-resolution-log",
+						`State.get('user'): ${userState}`
+					);
+					log(
+						"state-resolution-log",
+						`State.get('counter'): ${counterState}`
+					);
+					log(
+						"state-resolution-log",
+						`User value: ${JSON.stringify(userState?.value)}`
+					);
+					log(
+						"state-resolution-log",
+						`Counter value: ${counterState?.value}`
+					);
+
+					if (userState && counterState) {
+						log(
+							"state-resolution-log",
+							"\n✅ State resolution working!"
+						);
+						document
+							.getElementById("test-state-resolution")
+							.parentElement.classList.add("pass");
+					} else {
+						log(
+							"state-resolution-log",
+							"\n❌ State resolution failed!"
+						);
+						document
+							.getElementById("test-state-resolution")
+							.parentElement.classList.add("fail");
+					}
+				});
+			};
+
+			// Step 3: Expression resolution test
+			document.getElementById("test-expression-resolution").onclick =
+				() => {
+					clearLog("expression-log");
+
+					log(
+						"expression-log",
+						"=== Testing Expression Resolution ==="
+					);
+
+					const expressions = ["user.name", "counter", "user.age"];
+
+					expressions.forEach((expr) => {
+						log("expression-log", `\n--- Testing: "${expr}" ---`);
+						try {
+							const result = _evaluateExpression(expr);
+							log("expression-log", `Parsed successfully`);
+							log(
+								"expression-log",
+								`State refs count: ${
+									result._stateRefs?.size || 0
+								}`
+							);
+
+							if (result._stateRefs) {
+								for (const ref of result._stateRefs) {
+									log(
+										"expression-log",
+										`  - Name: "${ref._name}"`
+									);
+									log(
+										"expression-log",
+										`    State object: ${ref._state}`
+									);
+									log(
+										"expression-log",
+										`    State value: ${ref._state?.value}`
+									);
+									log(
+										"expression-log",
+										`    Is null?: ${ref._state === null}`
+									);
+								}
+							}
+
+							// Test with props object like registry would create
+							const props = {};
+							if (result._stateRefs) {
+								for (const ref of result._stateRefs) {
+									props[ref._name] = ref._state;
+								}
+							}
+
+							log(
+								"expression-log",
+								`Props object keys: ${Object.keys(props)}`
+							);
+
+							try {
+								const evalResult = result.fn(props);
+								log(
+									"expression-log",
+									`Evaluation result: "${evalResult}"`
+								);
+							} catch (evalError) {
+								log(
+									"expression-log",
+									`Evaluation error: ${evalError.message}`
+								);
+							}
+						} catch (error) {
+							log(
+								"expression-log",
+								`Parse error: ${error.message}`
+							);
+						}
+					});
+				};
+
+			// Step 4: Registry processing test
+			document.getElementById("test-registry").onclick = () => {
+				clearLog("registry-log");
+
+				const target = document.getElementById("registry-test-target");
+				log("registry-log", "=== Registry Processing Test ===");
+				log("registry-log", `Target element: ${target.tagName}`);
+				log("registry-log", `Inner HTML: ${target.innerHTML}`);
+
+				try {
+					const regEl = register(target);
+					log("registry-log", `\nRegistration completed: ${!!regEl}`);
+					log(
+						"registry-log",
+						`RegEl props: ${Object.keys(regEl._props || {})}`
+					);
+
+					if (regEl._props) {
+						for (const [key, state] of Object.entries(
+							regEl._props
+						)) {
+							log(
+								"registry-log",
+								`  ${key}: ${state} (value: ${state?.value})`
+							);
+						}
+					}
+
+					// Check if text nodes were processed
+					log(
+						"registry-log",
+						"\n=== Checking Text Node Processing ==="
+					);
+					const textNodes = [];
+					const walker = document.createTreeWalker(
+						target,
+						NodeFilter.SHOW_TEXT,
+						null,
+						false
+					);
+
+					let node;
+					while ((node = walker.nextNode())) {
+						if (node.textContent.trim()) {
+							textNodes.push(node.textContent);
+						}
+					}
+
+					log(
+						"registry-log",
+						`Text nodes found: ${textNodes.length}`
+					);
+					textNodes.forEach((text, i) => {
+						log("registry-log", `  ${i + 1}: "${text}"`);
+					});
+				} catch (error) {
+					log("registry-log", `Registration error: ${error.message}`);
+					log("registry-log", `Stack: ${error.stack}`);
+				}
+			};
+
+			// Step 5: Text processing investigation
+			document.getElementById("test-text-processing").onclick = () => {
+				clearLog("text-processing-log");
+
+				const target = document.getElementById("text-node-target");
+				log("text-processing-log", "=== Manual Text Processing ===");
+
+				// Find text nodes with expressions
+				const walker = document.createTreeWalker(
+					target,
+					NodeFilter.SHOW_TEXT,
+					null,
+					false
+				);
+
+				const textNodes = [];
+				let node;
+				while ((node = walker.nextNode())) {
+					if (node.textContent.includes("${")) {
+						textNodes.push(node);
+					}
+				}
+
+				log(
+					"text-processing-log",
+					`Found ${textNodes.length} text nodes with expressions`
+				);
+
+				textNodes.forEach((textNode, index) => {
+					log(
+						"text-processing-log",
+						`\n--- Text Node ${index + 1} ---`
+					);
+					log(
+						"text-processing-log",
+						`Original: "${textNode.textContent}"`
+					);
+
+					const originalText = textNode.textContent;
+					const regex = /\$\{[^}]*\}/g;
+					let match;
+					const expressions = [];
+
+					while ((match = regex.exec(originalText))) {
+						const expr = match[0].slice(2, -1);
+						log("text-processing-log", `Expression: "${expr}"`);
+
+						try {
+							const result = _evaluateExpression(expr);
+							const props = {};
+
+							if (result._stateRefs) {
+								for (const ref of result._stateRefs) {
+									props[ref._name] = ref._state;
+									log(
+										"text-processing-log",
+										`  Added prop ${ref._name}: ${ref._state?.value}`
+									);
+								}
+							}
+
+							if (result.fn) {
+								const value = result.fn(props);
+								log(
+									"text-processing-log",
+									`  Evaluated to: "${value}"`
+								);
+								expressions.push([match[0], value]);
+							}
+						} catch (error) {
+							log(
+								"text-processing-log",
+								`  Error: ${error.message}`
+							);
+						}
+					}
+
+					// Apply replacements
+					let newText = originalText;
+					expressions.forEach(([pattern, value]) => {
+						newText = newText.replace(pattern, String(value));
+					});
+
+					log("text-processing-log", `Updated: "${newText}"`);
+					textNode.textContent = newText;
+				});
+			};
+
+			document.getElementById("update-states").onclick = () => {
+				log("text-processing-log", "\n=== Updating States ===");
+				window.user.value = {
+					...window.user.value,
+					name: "Updated Name!",
+				};
+				window.counter.value += 10;
+				log(
+					"text-processing-log",
+					"States updated - check if UI changed"
+				);
+			};
+
+			console.log("🔍 Diagnostic test ready");
+			console.log("Created states:", {
+				user: window.user,
+				counter: window.counter,
+			});
+		</script>
+	</body>
+</html>

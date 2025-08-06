@@ -3,615 +3,591 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Manifold Registry Test</title>
+		<title>Manifold Framework - Complete Feature Test</title>
 		<style>
 			body {
-				font-family: Arial, sans-serif;
-				max-width: 800px;
+				font-family: system-ui, -apple-system, sans-serif;
+				max-width: 1200px;
 				margin: 0 auto;
 				padding: 20px;
+				line-height: 1.6;
 			}
-			.test-section {
-				margin: 20px 0;
+			.feature-section {
+				margin: 30px 0;
+				padding: 20px;
+				border: 2px solid #e2e8f0;
+				border-radius: 8px;
+				background: #f8fafc;
+			}
+			.feature-section h2 {
+				margin-top: 0;
+				color: #2d3748;
+				border-bottom: 2px solid #e2e8f0;
+				padding-bottom: 10px;
+			}
+			.demo-area {
+				background: white;
 				padding: 15px;
-				border: 1px solid #ccc;
-				border-radius: 5px;
-			}
-			.hidden {
-				display: none;
-			}
-			.item {
-				padding: 8px;
-				margin: 4px 0;
-				background: #f0f0f0;
-				border-radius: 3px;
+				border-radius: 6px;
+				border: 1px solid #e2e8f0;
+				margin: 15px 0;
 			}
 			button {
 				padding: 8px 16px;
 				margin: 5px;
-				background: #007acc;
+				background: #3182ce;
 				color: white;
 				border: none;
-				border-radius: 3px;
+				border-radius: 4px;
 				cursor: pointer;
+				font-size: 14px;
 			}
 			button:hover {
-				background: #005999;
+				background: #2c5282;
 			}
-			input {
-				padding: 5px;
+			button:disabled {
+				background: #a0aec0;
+				cursor: not-allowed;
+			}
+			input, select, textarea {
+				padding: 8px;
 				margin: 5px;
-				border: 1px solid #ccc;
-				border-radius: 3px;
+				border: 1px solid #e2e8f0;
+				border-radius: 4px;
+				font-size: 14px;
 			}
+			input:focus, select:focus, textarea:focus {
+				outline: none;
+				border-color: #3182ce;
+				box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+			}
+			.item {
+				padding: 10px;
+				margin: 8px 0;
+				background: #edf2f7;
+				border-radius: 4px;
+				border-left: 4px solid #3182ce;
+			}
+			.status {
+				display: inline-block;
+				padding: 4px 8px;
+				border-radius: 4px;
+				font-size: 12px;
+				font-weight: bold;
+			}
+			.status.active { background: #c6f6d5; color: #22543d; }
+			.status.inactive { background: #fed7d7; color: #742a2a; }
+			.list-item {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 8px;
+				margin: 4px 0;
+				background: white;
+				border: 1px solid #e2e8f0;
+				border-radius: 4px;
+			}
+			.form-group {
+				margin: 15px 0;
+			}
+			.form-group label {
+				display: block;
+				margin-bottom: 5px;
+				font-weight: 600;
+				color: #4a5568;
+			}
+			.counter-display {
+				font-size: 24px;
+				font-weight: bold;
+				color: #3182ce;
+				text-align: center;
+				padding: 20px;
+				background: white;
+				border-radius: 8px;
+				margin: 10px 0;
+			}
+			.error { color: #e53e3e; font-weight: bold; }
+			.success { color: #38a169; font-weight: bold; }
+			.info { color: #3182ce; font-style: italic; }
 		</style>
 	</head>
 	<body>
-		<h1>Registry Test - data-scope</h1>
+		<h1>🚀 Manifold Framework - Complete Feature Demonstration</h1>
+		<p>This page demonstrates all Manifold features from the specification (excluding async features).</p>
 
-		<div class="test-section">
-			<h2>Computed State Example</h2>
-			<p>
-				Demonstrates the new computed() helper function for reactive
-				derived values
-			</p>
-			<div data-bind="textContent: @greeting">${greeting}</div>
-			<p>
-				Try changing the user name or age below to see the greeting
-				update automatically!
-			</p>
-		</div>
-
-		<span id="test-el-2" data-bind="textContent: 'Counter is ' + @counter">
-			Counter is ${counter}!
-		</span>
-
-		<div id="test-el-3" data-scope="@counter as count" data-if="@count > 5">
-			Counter (aliased as count) is greater than 5:
-			<span id="counter-display"></span>
-		</div>
-		<div
-			id="test-el-44"
-			data-scope="@counter as count"
-			data-elseif="@count > 1"
-		>
-			Counter (aliased as count) is greater than 1 BOI:
-			<span id="counter-display"></span>
-		</div>
-		<div id="test-el-55" data-scope="@counter as count" data-else>
-			Counter (aliased as count) is 0 or 1 or something really low:
-			<span id="counter-display"></span>
-		</div>
-
-		<div id="test-el-4" data-scope="@user.name as name">
-			User name (aliased): <span data-bind="textContent: @name"></span> ==
-			${name}
-		</div>
-
-		<div class="test-section">
-			<h2>Data-Sync Test (Two-Way Binding)</h2>
-			<p>Testing data-sync for bidirectional state binding</p>
-
-			<!-- Text input sync -->
-			<div>
-				<label>Text Input (synced with @user.name):</label>
-				<input
-					type="text"
-					id="name-input"
-					data-sync="value:@user.name"
-					placeholder="Enter name"
-				/>
-				<p>
-					Current user name:
-					<span data-bind="textContent:@user.name"></span>
-				</p>
+		<!-- 🎯 Element Registration Demo -->
+		<section class="feature-section">
+			<h2>🎯 Element Registration with data-mf-register</h2>
+			<p>Elements must be registered to enable Manifold processing. Use <code>data-mf-ignore</code> to exclude specific elements.</p>
+			
+			<div class="demo-area" data-mf-register>
+				<h3>✅ Registered Area (Manifold Active)</h3>
+				<p>Current user: <strong>${user.name}</strong> (${user.age} years old)</p>
+				<p>Status: <span class="status ${user.isActive ? 'active' : 'inactive'}">${user.isActive ? 'Active' : 'Inactive'}</span></p>
+				
+				<div data-mf-ignore>
+					<h4>❌ Ignored Area (Regular HTML)</h4>
+					<p>This text will not be processed: ${user.name} (should show literal text)</p>
+					<button onclick="alert('Regular JavaScript still works!')">Regular Button</button>
+				</div>
+				
+				<button onclick="${() => toggleUserStatus()}">Toggle User Status</button>
 			</div>
+		</section>
 
-			<!-- Number input sync -->
-			<div>
-				<label>Number Input (synced with @user.age):</label>
-				<input
-					type="number"
-					id="age-input"
-					data-sync="value:@user.age"
-					min="0"
-					max="120"
-				/>
-				<p>
-					Current user age:
-					<span data-bind="textContent:@user.age"></span>
-				</p>
-			</div>
-
-			<!-- Checkbox sync -->
-			<div>
-				<label>
-					<input
-						type="checkbox"
-						id="active-checkbox"
-						data-sync="checked:@user.active"
+		<!-- 🔄 Property Binding Demo -->
+		<section class="feature-section">
+			<h2>🔄 Property Binding with ${} Syntax</h2>
+			<p>Bind element properties and attributes using expression syntax.</p>
+			
+			<div class="demo-area" data-mf-register>
+				<div class="form-group">
+					<label>Name Input (bound to user.name):</label>
+					<input 
+						type="text" 
+						value="${user.name}" 
+						placeholder="Enter your name"
+						onchange="${event => user.name = event.target.value}"
 					/>
-					User is active
-				</label>
-				<p>
-					Active status:
-					<span data-bind="textContent:@user.active"></span>
-				</p>
-			</div>
-
-			<!-- Counter with aliasing -->
-			<div data-scope="@counter as count">
-				<label>Counter Input (with aliasing):</label>
-				<input
-					type="number"
-					id="counter-input"
-					data-sync="value:@count"
-				/>
-				<p>
-					Counter value: <span data-bind="textContent:@count"></span>
-				</p>
-			</div>
-
-			<button onclick="resetSyncTest()">Reset Values</button>
-			<button onclick="logSyncValues()">Log Current Values</button>
-		</div>
-
-		<div class="test-section">
-			<h2>Data-Each Test (List Rendering)</h2>
-			<p>Testing data-each for efficient list rendering with aliasing</p>
-
-			<!-- Simple list -->
-			<div>
-				<h3>Todo List (@todos as todo, index):</h3>
-				<ul>
-					<li
-						data-each="@todos as todo, index"
-						data-bind="textContent: @index + ': ' + @todo.text + ' (' + (@todo.done ? 'done' : 'pending') + ')'"
-					></li>
-				</ul>
-			</div>
-
-			<!-- Interactive list -->
-			<div>
-				<h3>Numbers List (@numbers as num):</h3>
-				<div>
-					<span
-						data-each="@numbers as num"
-						data-bind="textContent: 'Number: ' + @num + ', '"
-					></span>
-					<br />
+				</div>
+				
+				<div class="form-group">
+					<label>Age Input (bound to user.age):</label>
+					<input 
+						type="number" 
+						value="${user.age}" 
+						min="0" 
+						max="120"
+						onchange="${event => user.age = parseInt(event.target.value)}"
+					/>
+				</div>
+				
+				<div class="form-group">
+					<label>
+						<input 
+							type="checkbox" 
+							checked="${user.isActive}"
+							onchange="${event => user.isActive = event.target.checked}"
+						/> 
+						User is active
+					</label>
+				</div>
+				
+				<div class="form-group">
+					<label>Dynamic Button:</label>
+					<button 
+						disabled="${!user.name || user.age < 18}"
+						onclick="${() => saveUser()}"
+					>
+						${user.name ? `Save ${user.name}` : 'Enter name to save'}
+					</button>
 				</div>
 			</div>
+		</section>
 
-			<button onclick="addTodo()">Add Todo</button>
-			<button onclick="toggleFirstTodo()">Toggle First Todo</button>
-			<button onclick="addNumber()">Add Random Number</button>
-			<button onclick="clearNumbers()">Clear Numbers</button>
-			<button onclick="debugDataEach()">Debug Data-Each</button>
-			<button onclick="testExpression()">Test Expression</button>
-		</div>
-
-		<div class="test-section">
-			<h2>Element Registry Test</h2>
-			<p>Testing data-scope prop binding and logging</p>
-
-			<div
-				id="test-element"
-				data-if="@user as me !== undefined"
-				data-scope="@user, @counter as count"
-			>
-				Test element with scoped props
+		<!-- ⚡ Reactive State Demo -->
+		<section class="feature-section">
+			<h2>⚡ Reactive State & Counter</h2>
+			<p>Demonstrate reactive updates and computed values.</p>
+			
+			<div class="demo-area" data-mf-register>
+				<div class="counter-display">
+					Counter: ${counter}
+				</div>
+				
+				<div style="text-align: center;">
+					<button onclick="${() => counter--}">➖ Decrement</button>
+					<button onclick="${() => counter = 0}">🔄 Reset</button>
+					<button onclick="${() => counter++}">➕ Increment</button>
+				</div>
+				
+				<p>
+					<strong>Counter Status:</strong> 
+					${counter === 0 ? 'Zero' : counter > 0 ? 'Positive' : 'Negative'}
+					${counter > 10 ? ' (High!)' : ''}
+				</p>
+				
+				<p><strong>Double:</strong> ${counter * 2}</p>
+				<p><strong>Square:</strong> ${counter * counter}</p>
 			</div>
+		</section>
 
-			<button onclick="logProps()">Log Props</button>
-			<button onclick="updateProps()">Update Props</button>
-			<button onclick="logPropsAgain()">Log Props Again</button>
-			<button onclick="incrementCounter()">Increment Counter</button>
-		</div>
+		<!-- 🎭 Conditional Rendering Demo -->
+		<section class="feature-section">
+			<h2>🎭 Conditional Rendering (data-if, data-elseif, data-else)</h2>
+			<p>Show/hide content based on conditions.</p>
+			
+			<div class="demo-area" data-mf-register>
+				<div class="form-group">
+					<label>Score:</label>
+					<input 
+						type="number" 
+						value="${score}" 
+						min="0" 
+						max="100"
+						onchange="${event => score = parseInt(event.target.value) || 0}"
+					/>
+				</div>
+				
+				<div data-if="${score >= 90}">
+					<div class="status active">🌟 Excellent! Grade: A</div>
+				</div>
+				<div data-elseif="${score >= 80}">
+					<div class="status active">👍 Good! Grade: B</div>
+				</div>
+				<div data-elseif="${score >= 70}">
+					<div class="info">👌 Fair. Grade: C</div>
+				</div>
+				<div data-elseif="${score >= 60}">
+					<div class="error">⚠️ Poor. Grade: D</div>
+				</div>
+				<div data-else>
+					<div class="error">❌ Failing! Grade: F</div>
+				</div>
+				
+				<p><strong>Message:</strong> ${score >= 70 ? 'Keep up the good work!' : 'You can do better!'}</p>
+			</div>
+		</section>
 
-		<!-- Import Manifold -->
+		<!-- 📝 List Rendering Demo -->
+		<section class="feature-section">
+			<h2>📝 List Rendering (data-each)</h2>
+			<p>Render lists with the data-each attribute and aliasing.</p>
+			
+			<div class="demo-area" data-mf-register>
+				<h3>Todo List</h3>
+				<div>
+					<input 
+						id="new-todo" 
+						type="text" 
+						placeholder="Add a new todo..."
+						value="${newTodoText}"
+						onchange="${event => newTodoText = event.target.value}"
+						onkeypress="${event => event.key === 'Enter' ? addTodo() : null}"
+					/>
+					<button onclick="${() => addTodo()}">Add Todo</button>
+					<button onclick="${() => clearCompleted()}">Clear Completed</button>
+				</div>
+				
+				<div>
+					<div class="list-item" data-each="${todos}">
+						<label>
+							<input 
+								type="checkbox" 
+								checked="${value.completed}"
+								onchange="${event => toggleTodo(value.id, event.target.checked)}"
+							/>
+							<span style="${value.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${value.text}</span>
+						</label>
+						<button onclick="${() => removeTodo(value.id)}">🗑️</button>
+					</div>
+					
+					<div data-else>
+						<p class="info">No todos yet. Add one above!</p>
+					</div>
+				</div>
+				
+				<p><strong>Stats:</strong> ${todos.filter(t => !t.completed).length} active, ${todos.filter(t => t.completed).length} completed</p>
+			</div>
+		</section>
+
+		<!-- 🎨 Dynamic Styling Demo -->
+		<section class="feature-section">
+			<h2>🎨 Dynamic Styling & Classes</h2>
+			<p>Dynamically change styles and CSS classes.</p>
+			
+			<div class="demo-area" data-mf-register>
+				<div class="form-group">
+					<label>Theme:</label>
+					<select value="${theme}" onchange="${event => theme = event.target.value}">
+						<option value="light">Light</option>
+						<option value="dark">Dark</option>
+						<option value="blue">Blue</option>
+						<option value="red">Red</option>
+					</select>
+				</div>
+				
+				<div 
+					style="${`
+						padding: 20px; 
+						border-radius: 8px; 
+						transition: all 0.3s ease;
+						background: ${theme === 'light' ? '#f7fafc' : theme === 'dark' ? '#2d3748' : theme === 'blue' ? '#e6fffa' : '#fed7d7'};
+						color: ${theme === 'dark' ? '#f7fafc' : '#2d3748'};
+						border: 2px solid ${theme === 'blue' ? '#3182ce' : theme === 'red' ? '#e53e3e' : '#e2e8f0'};
+					`}"
+				>
+					<h4>🎨 Themed Content Area</h4>
+					<p>Current theme: <strong>${theme}</strong></p>
+					<p>This area changes appearance based on the selected theme!</p>
+				</div>
+			</div>
+		</section>
+
+		<!-- 📊 Complex Expression Demo -->
+		<section class="feature-section">
+			<h2>📊 Complex Expressions & Calculations</h2>
+			<p>Demonstrate complex JavaScript expressions in templates.</p>
+			
+			<div class="demo-area" data-mf-register>
+				<div class="form-group">
+					<label>Numbers (comma-separated):</label>
+					<input 
+						type="text" 
+						value="${numbersInput}" 
+						placeholder="1, 2, 3, 4, 5"
+						onchange="${event => numbersInput = event.target.value}"
+					/>
+				</div>
+				
+				<div data-if="${numbersInput.trim()}">
+					<h4>📈 Statistics:</h4>
+					<p><strong>Numbers:</strong> ${numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number)}</p>
+					<p><strong>Count:</strong> ${numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).length}</p>
+					<p><strong>Sum:</strong> ${numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number).reduce((a, b) => a + b, 0)}</p>
+					<p><strong>Average:</strong> ${Math.round((numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number).reduce((a, b) => a + b, 0) / numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).length) * 100) / 100}</p>
+					<p><strong>Max:</strong> ${Math.max(...numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number))}</p>
+					<p><strong>Min:</strong> ${Math.min(...numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number))}</p>
+				</div>
+				
+				<div data-else>
+					<p class="info">Enter some numbers to see statistics!</p>
+				</div>
+			</div>
+		</section>
+
+		<!-- 🎮 Interactive Demo -->
+		<section class="feature-section">
+			<h2>🎮 Interactive Game Demo</h2>
+			<p>A simple number guessing game to showcase event handling and state management.</p>
+			
+			<div class="demo-area" data-mf-register>
+				<div data-if="${!game.started}">
+					<h4>🎯 Number Guessing Game</h4>
+					<p>I'm thinking of a number between 1 and 100. Can you guess it?</p>
+					<button onclick="${() => startGame()}">Start Game</button>
+				</div>
+				
+				<div data-else>
+					<h4>🎯 Guess the Number (1-100)</h4>
+					<p>Attempts: ${game.attempts} | Best Score: ${game.bestScore || 'N/A'}</p>
+					
+					<div data-if="${!game.won}">
+						<div class="form-group">
+							<input 
+								type="number" 
+								min="1" 
+								max="100"
+								value="${game.guess}" 
+								placeholder="Enter your guess"
+								onchange="${event => game.guess = parseInt(event.target.value)}"
+								onkeypress="${event => event.key === 'Enter' ? makeGuess() : null}"
+							/>
+							<button onclick="${() => makeGuess()}" disabled="${!game.guess}">
+								Guess!
+							</button>
+						</div>
+						
+						<div data-if="${game.lastGuess}">
+							<p class="${game.lastHint === 'correct' ? 'success' : 'info'}">
+								Last guess: ${game.lastGuess} - ${game.lastHint}
+							</p>
+						</div>
+					</div>
+					
+					<div data-else>
+						<div class="success">
+							<h4>🎉 Congratulations!</h4>
+							<p>You guessed ${game.target} in ${game.attempts} attempts!</p>
+							<button onclick="${() => startGame()}">Play Again</button>
+						</div>
+					</div>
+					
+					<button onclick="${() => resetGame()}">Reset Game</button>
+				</div>
+			</div>
+		</section>
+
+		<!-- Import and initialize Manifold -->
 		<script type="module">
-			import { State, computed } from "./src/State.js";
-			import { RegEl } from "./src/registry.js";
-			import { evaluateExpression } from "./src/expression-parser.js";
+			import { state, register } from './src/index.js';
 
-			// Initialize test states
-			window.userState = new State(
-				{
-					name: "John Doe",
-					age: 25,
-					active: false,
-				},
-				"user"
-			);
-			window.counterState = new State(0, "counter");
+			// Initialize states with explicit names - THIS IS KEY!
+			window.user = state({
+				name: 'John Doe',
+				age: 25,
+				isActive: false
+			}, 'user');
 
-			// Create a computed state that derives from user state
-			window.greetingState = computed(() => {
-				const user = window.userState.value;
-				return `Hello, ${user.name}! You are ${user.age} years old.`;
-			});
+			window.counter = state(0, 'counter');
+			window.score = state(85, 'score');
+			window.theme = state('light', 'theme');
+			window.numbersInput = state('1, 2, 3, 4, 5', 'numbersInput');
+			window.newTodoText = state('', 'newTodoText');
+			
+			window.todos = state([
+				{ id: 1, text: 'Learn Manifold Framework', completed: false },
+				{ id: 2, text: 'Build awesome apps', completed: false },
+				{ id: 3, text: 'Share with the community', completed: true }
+			], 'todos');
 
-			// Initialize array states for data-each testing
-			window.todosState = new State(
-				[
-					{ text: "Learn Manifold", done: false },
-					{ text: "Build awesome apps", done: false },
-					{ text: "Celebrate success", done: true },
-				],
-				"todos"
-			);
+			window.game = state({
+				started: false,
+				target: 0,
+				guess: '',
+				attempts: 0,
+				lastGuess: null,
+				lastHint: '',
+				won: false,
+				bestScore: localStorage.getItem('bestScore') ? parseInt(localStorage.getItem('bestScore')) : null
+			}, 'game');
 
-			window.numbersState = new State([1, 2, 3, 4, 5], "numbers");
-
-			// Register states globally
-			State.register("user", window.userState);
-			State.register("counter", window.counterState);
-			State.register("todos", window.todosState);
-			State.register("numbers", window.numbersState);
-			State.register("greeting", window.greetingState);
-
-			// Debug: Log available states
-			console.log("=== REGISTERED STATES ===");
-			console.log("User state:", State.get("user"));
-			console.log("Counter state:", State.get("counter"));
-			console.log("Todos state:", State.get("todos"));
-			console.log("Numbers state:", State.get("numbers"));
-			console.log("Todos value:", window.todosState.value);
-			console.log("Numbers value:", window.numbersState.value);
-
-			// Register the test element
-			let testRegEl;
-			document.addEventListener("DOMContentLoaded", () => {
-				const testElement = document.getElementById("test-element");
-				testRegEl = RegEl.register(testElement);
-
-				const testElement2 = document.getElementById("test-el-2");
-				RegEl.register(testElement2);
-				const testElement3 = document.getElementById("test-el-3");
-				RegEl.register(testElement3);
-
-				const testElement4 = document.getElementById("test-el-4");
-				RegEl.register(testElement4);
-				const testElement44 = document.getElementById("test-el-44");
-				RegEl.register(testElement44);
-
-				const testElement55 = document.getElementById("test-el-55");
-				RegEl.register(testElement55);
-
-				// Register sync test elements
-				const nameInput = document.getElementById("name-input");
-				RegEl.register(nameInput);
-
-				const ageInput = document.getElementById("age-input");
-				RegEl.register(ageInput);
-
-				const activeCheckbox =
-					document.getElementById("active-checkbox");
-				RegEl.register(activeCheckbox);
-
-				// Register the counter scope div first, then the input
-				const counterScopeDiv = document.querySelector(
-					'.test-section [data-scope="@counter as count"]'
-				);
-				console.log("=== REGISTERING COUNTER SCOPE DIV ===");
-				console.log("Counter scope div:", counterScopeDiv);
-				if (counterScopeDiv) {
-					const scopeRegEl = RegEl.register(counterScopeDiv);
-					console.log("Scope RegEl props:", scopeRegEl.props);
-				}
-
-				console.log("=== REGISTERING COUNTER INPUT ===");
-				const counterInput = document.getElementById("counter-input");
-				console.log("Counter input:", counterInput);
-				console.log(
-					"Counter input parent:",
-					counterInput.parentElement
-				);
-				const inputRegEl = RegEl.register(counterInput);
-				console.log("Input RegEl props:", inputRegEl.props);
-
-				// Register display spans for sync test
-				const nameDisplay = document.querySelector(
-					'[data-bind="textContent:@user.name"]'
-				);
-				if (nameDisplay) RegEl.register(nameDisplay);
-
-				const ageDisplay = document.querySelector(
-					'[data-bind="textContent:@user.age"]'
-				);
-				if (ageDisplay) RegEl.register(ageDisplay);
-
-				const activeDisplay = document.querySelector(
-					'[data-bind="textContent:@user.active"]'
-				);
-				if (activeDisplay) RegEl.register(activeDisplay);
-
-				const countDisplay = document.querySelector(
-					'[data-bind="textContent:@count"]'
-				);
-				if (countDisplay) RegEl.register(countDisplay);
-
-				// Register data-each elements (the repeating elements, not their containers)
-				const todoListItem = document.querySelector(
-					'li[data-each="@todos as todo, index"]'
-				);
-				console.log("Todo list item element:", todoListItem);
-				if (todoListItem) {
-					console.log("Registering todo list item...");
-					const todosRegEl = RegEl.register(todoListItem);
-					console.log("Todo item RegEl:", todosRegEl);
-					console.log("Todo item RegEl props:", todosRegEl.props);
-				}
-
-				const numbersSpan = document.querySelector(
-					'span[data-each="@numbers as num"]'
-				);
-				console.log("Numbers span element:", numbersSpan);
-				if (numbersSpan) {
-					console.log("Registering numbers span...");
-					const numbersRegEl = RegEl.register(numbersSpan);
-					console.log("Numbers span RegEl:", numbersRegEl);
-					console.log(
-						"Numbers span RegEl props:",
-						numbersRegEl.props
-					);
-				}
-
-				console.log("Element registered:", testRegEl);
-			});
-
-			// Test functions
-			window.logProps = () => {
-				console.log("=== Logging Props ===");
-				console.log("RegEl props:", testRegEl.props);
-
-				Object.entries(testRegEl.props).forEach(([key, state]) => {
-					console.log(`${key}:`, state.value);
-				});
-			};
-
-			window.updateProps = () => {
-				console.log("=== Updating Props ===");
-				window.userState.value = {
-					name: "Jane Smith",
-					age: 30,
+			// Helper functions
+			window.toggleUserStatus = () => {
+				window.user.value = { 
+					...window.user.value, 
+					isActive: !window.user.value.isActive 
 				};
-				window.counterState.value = 42;
-				console.log("Props updated!");
 			};
 
-			window.logPropsAgain = () => {
-				console.log("=== Logging Props Again ===");
-				console.log("RegEl props:", testRegEl.props);
-
-				Object.entries(testRegEl.props).forEach(([key, state]) => {
-					console.log(`${key}:`, state.value);
-				});
+			window.saveUser = () => {
+				alert(`User saved: ${window.user.value.name}, Age: ${window.user.value.age}, Active: ${window.user.value.isActive}`);
 			};
 
-			window.incrementCounter = () => {
-				console.log("=== Incrementing Counter ===");
-				window.counterState.value += 1;
-				console.log("Counter is now:", window.counterState.value);
-			};
-
-			window.resetSyncTest = () => {
-				console.log("=== Resetting Sync Test Values ===");
-				window.userState.value = {
-					name: "John Doe",
-					age: 25,
-					active: false,
-				};
-				window.counterState.value = 0;
-				console.log("Values reset!");
-			};
-
-			window.logSyncValues = () => {
-				console.log("=== Current Sync Values ===");
-				console.log("User state:", window.userState.value);
-				console.log("Counter state:", window.counterState.value);
-
-				// Also log the actual DOM element values
-				console.log("DOM Element Values:");
-				console.log(
-					"Name input:",
-					document.getElementById("name-input").value
-				);
-				console.log(
-					"Age input:",
-					document.getElementById("age-input").value
-				);
-				console.log(
-					"Active checkbox:",
-					document.getElementById("active-checkbox").checked
-				);
-				console.log(
-					"Counter input:",
-					document.getElementById("counter-input").value
-				);
-
-				// Debug: Check if the alias states are the same objects
-				const counterInputRegEl = RegEl.getRegEl(
-					document.getElementById("counter-input")
-				);
-				if (counterInputRegEl) {
-					console.log("=== Counter Input RegEl Props ===");
-					console.log("Props:", counterInputRegEl.props);
-					console.log("count state:", counterInputRegEl.props.count);
-					console.log(
-						"counter state:",
-						counterInputRegEl.props.counter
-					);
-					console.log(
-						"Are they the same object?",
-						counterInputRegEl.props.count ===
-							counterInputRegEl.props.counter
-					);
-					console.log(
-						"count value:",
-						counterInputRegEl.props.count?.value
-					);
-					console.log(
-						"counter value:",
-						counterInputRegEl.props.counter?.value
-					);
-				}
-			};
-
-			window.debugSync = () => {
-				console.log("=== SYNC DEBUG ===");
-				const counterInput = document.getElementById("counter-input");
-				const regEl = RegEl.getRegEl(counterInput);
-				console.log("Counter input element:", counterInput);
-				console.log("Counter input RegEl:", regEl);
-				console.log("Counter input value:", counterInput.value);
-				console.log("Counter state value:", window.counterState.value);
-				console.log(
-					"Available aliases in props:",
-					regEl ? Object.keys(regEl.props) : "No RegEl"
-				);
-				if (regEl) {
-					console.log("count alias state:", regEl.props.count);
-					console.log("count alias value:", regEl.props.count?.value);
-					console.log("counter alias state:", regEl.props.counter);
-					console.log(
-						"counter alias value:",
-						regEl.props.counter?.value
-					);
-				}
-
-				// Test manual sync
-				console.log("=== TESTING MANUAL SYNC ===");
-				if (regEl && regEl.props.count) {
-					console.log("Setting count state to 99");
-					regEl.props.count.value = 99;
-					console.log(
-						"Count state after manual set:",
-						regEl.props.count.value
-					);
-					console.log(
-						"Global counter state:",
-						window.counterState.value
-					);
-				}
-			};
-
-			// Data-each test functions
+			let nextTodoId = 4;
 			window.addTodo = () => {
-				console.log("=== Adding Todo ===");
-				const newTodo = {
-					text: `New todo ${window.todosState.value.length + 1}`,
-					done: false,
-				};
-				window.todosState.value = [...window.todosState.value, newTodo];
-				console.log("New todos:", window.todosState.value);
-			};
-
-			window.toggleFirstTodo = () => {
-				console.log("=== Toggling First Todo ===");
-				const todos = [...window.todosState.value];
-				if (todos.length > 0) {
-					todos[0] = { ...todos[0], done: !todos[0].done };
-					window.todosState.value = todos;
-					console.log("Updated todos:", window.todosState.value);
+				const text = window.newTodoText.value.trim();
+				if (text) {
+					window.todos.value = [
+						...window.todos.value,
+						{ id: nextTodoId++, text, completed: false }
+					];
+					window.newTodoText.value = '';
 				}
 			};
 
-			window.addNumber = () => {
-				console.log("=== Adding Random Number ===");
-				const randomNum = Math.floor(Math.random() * 100);
-				window.numbersState.value = [
-					...window.numbersState.value,
-					randomNum,
-				];
-				console.log("New numbers:", window.numbersState.value);
-			};
-
-			window.clearNumbers = () => {
-				console.log("=== Clearing Numbers ===");
-				window.numbersState.value = [];
-				console.log("Numbers cleared");
-			};
-
-			window.debugDataEach = () => {
-				console.log("=== DEBUG DATA-EACH ===");
-				const todoListItem = document.querySelector(
-					'li[data-each="@todos as todo, index"]'
+			window.toggleTodo = (id, completed) => {
+				window.todos.value = window.todos.value.map(todo =>
+					todo.id === id ? { ...todo, completed } : todo
 				);
-				const numbersSpan = document.querySelector(
-					'span[data-each="@numbers as num"]'
-				);
-
-				console.log("Todo list item element:", todoListItem);
-				console.log("Numbers span element:", numbersSpan);
-
-				if (todoListItem) {
-					const todosRegEl = RegEl.getRegEl(todoListItem);
-					console.log("Todo item RegEl:", todosRegEl);
-					console.log("Todo item each state:", todosRegEl?.each);
-					console.log(
-						"Todo item each value:",
-						todosRegEl?.each?.value
-					);
-				}
-
-				if (numbersSpan) {
-					const numbersRegEl = RegEl.getRegEl(numbersSpan);
-					console.log("Numbers span RegEl:", numbersRegEl);
-					console.log("Numbers span each state:", numbersRegEl?.each);
-					console.log(
-						"Numbers span each value:",
-						numbersRegEl?.each?.value
-					);
-				}
-
-				console.log("Global todos state:", window.todosState.value);
-				console.log("Global numbers state:", window.numbersState.value);
 			};
 
-			window.testExpression = () => {
-				console.log("=== TESTING EXPRESSION ===");
+			window.removeTodo = (id) => {
+				window.todos.value = window.todos.value.filter(todo => todo.id !== id);
+			};
 
-				// Test simple expressions first
-				console.log("--- Simple expressions ---");
-				let expr1 = "@index";
-				let evaluator1 = evaluateExpression(expr1);
-				console.log(`${expr1} ->`, evaluator1.fn({ index: 0 }));
+			window.clearCompleted = () => {
+				window.todos.value = window.todos.value.filter(todo => !todo.completed);
+			};
 
-				let expr2 = "': '";
-				let evaluator2 = evaluateExpression(expr2);
-				console.log(`${expr2} ->`, evaluator2.fn({}));
-
-				let expr3 = "@index + ': '";
-				let evaluator3 = evaluateExpression(expr3);
-				console.log(`${expr3} ->`, evaluator3.fn({ index: 0 }));
-
-				// Test the problematic numbers expression
-				console.log("--- Problematic numbers expression ---");
-				let expr4 = "'Number: ' + @num + ', '";
-				let evaluator4 = evaluateExpression(expr4);
-				console.log(`${expr4} ->`, evaluator4.fn({ num: 42 }));
-
-				// Test the exact expression used in the todo list
-				console.log("--- Complex expression ---");
-				const expr =
-					"@index + ': ' + @todo.text + ' (' + (@todo.done ? 'done' : 'pending') + ')'";
-				console.log("Expression:", expr);
-
-				const evaluator = evaluateExpression(expr);
-				console.log("Evaluator:", evaluator);
-
-				// Test with sample context
-				const context = {
-					index: 0,
-					todo: { text: "Test todo", done: false },
+			window.startGame = () => {
+				window.game.value = {
+					...window.game.value,
+					started: true,
+					target: Math.floor(Math.random() * 100) + 1,
+					guess: '',
+					attempts: 0,
+					lastGuess: null,
+					lastHint: '',
+					won: false
 				};
-				console.log("Context:", context);
-
-				const result = evaluator.fn(context);
-				console.log("Result:", result);
 			};
+
+			window.makeGuess = () => {
+				const guess = window.game.value.guess;
+				if (!guess) return;
+
+				const attempts = window.game.value.attempts + 1;
+				let hint = '';
+				let won = false;
+
+				if (guess === window.game.value.target) {
+					hint = 'correct';
+					won = true;
+					// Update best score
+					const currentBest = window.game.value.bestScore;
+					if (!currentBest || attempts < currentBest) {
+						localStorage.setItem('bestScore', attempts.toString());
+						window.game.value = { 
+							...window.game.value, 
+							bestScore: attempts 
+						};
+					}
+				} else if (guess < window.game.value.target) {
+					hint = 'too low';
+				} else {
+					hint = 'too high';
+				}
+
+				window.game.value = {
+					...window.game.value,
+					attempts,
+					lastGuess: guess,
+					lastHint: hint,
+					won,
+					guess: ''
+				};
+			};
+
+			window.resetGame = () => {
+				window.game.value = {
+					...window.game.value,
+					started: false,
+					target: 0,
+					guess: '',
+					attempts: 0,
+					lastGuess: null,
+					lastHint: '',
+					won: false
+				};
+			};
+
+			// Register all sections when DOM is ready
+			document.addEventListener('DOMContentLoaded', () => {
+				console.log('🚀 Manifold Framework initializing...');
+				
+				// Verify states are properly named
+				console.log('📊 State verification:');
+				console.log('  user state name:', window.user._name);
+				console.log('  counter state name:', window.counter._name);
+				console.log('  todos state name:', window.todos._name);
+				console.log('  game state name:', window.game._name);
+				
+				// Register all elements with data-mf-register
+				const elementsToRegister = document.querySelectorAll('[data-mf-register]');
+				console.log(`🎯 Found ${elementsToRegister.length} elements to register`);
+				
+				elementsToRegister.forEach((element, index) => {
+					try {
+						console.log(`  Registering element ${index + 1}:`, element.tagName);
+						const regEl = register(element);
+						console.log(`  ✅ Element ${index + 1} registered successfully`);
+						console.log(`     Props available:`, Object.keys(regEl._props || {}));
+					} catch (error) {
+						console.error(`  ❌ Element ${index + 1} registration failed:`, error);
+					}
+				});
+				
+				console.log('🎉 Manifold Framework initialized with all features!');
+				console.log('🔧 Available global functions:', { 
+					toggleUserStatus, saveUser, addTodo, toggleTodo, removeTodo, 
+					clearCompleted, startGame, makeGuess, resetGame 
+				});
+				
+				// Test a state update to verify reactivity
+				setTimeout(() => {
+					console.log('🧪 Testing reactivity...');
+					const originalName = window.user.value.name;
+					window.user.value = { ...window.user.value, name: 'Reactivity Test ✅' };
+					
+					setTimeout(() => {
+						window.user.value = { ...window.user.value, name: originalName };
+						console.log('✅ Reactivity test completed');
+					}, 2000);
+				}, 1000);
+			});
 		</script>
+	</body>
+</html>
 	</body>
 </html>

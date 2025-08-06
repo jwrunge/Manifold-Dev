@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Registry System Test</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+			}
+			.test {
+				margin: 1rem 0;
+				padding: 1rem;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+			}
+			.pass {
+				border-color: #28a745;
+				background: #d4edda;
+			}
+			.fail {
+				border-color: #dc3545;
+				background: #f8d7da;
+			}
+			button {
+				padding: 8px 16px;
+				margin: 4px;
+				background: #007acc;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>🧪 Manifold Registry System Test</h1>
+
+		<div class="test">
+			<h3>Test 1: Basic State Reactivity</h3>
+			<p>Counter: <span id="counter-value">0</span></p>
+			<button id="increment">Increment</button>
+			<div id="test1-result">Testing...</div>
+		</div>
+
+		<div class="test">
+			<h3>Test 2: Registry Import</h3>
+			<div id="test2-result">Testing...</div>
+		</div>
+
+		<div class="test">
+			<h3>Test 3: Basic Element Registration</h3>
+			<div id="test-element">This element should be registered</div>
+			<div id="test3-result">Testing...</div>
+		</div>
+
+		<div class="test">
+			<h3>Test 4: Expression Parser</h3>
+			<div id="test4-result">Testing...</div>
+		</div>
+
+		<script type="module">
+			import { state, register } from "./src/index.js";
+
+			// Test 1: Basic reactivity
+			const counter = state(0);
+			const counterDisplay = document.getElementById("counter-value");
+			const test1Result = document.getElementById("test1-result");
+
+			counter.effect((value) => {
+				counterDisplay.textContent = value;
+			});
+
+			document.getElementById("increment").onclick = () =>
+				counter.value++;
+
+			setTimeout(() => {
+				test1Result.innerHTML =
+					'<span style="color: green;">✅ Basic reactivity works</span>';
+				test1Result.parentElement.classList.add("pass");
+			}, 100);
+
+			// Test 2: Registry import
+			const test2Result = document.getElementById("test2-result");
+			try {
+				console.log("Register function:", register);
+				if (typeof register === "function") {
+					test2Result.innerHTML =
+						'<span style="color: green;">✅ Registry function imported successfully</span>';
+					test2Result.parentElement.classList.add("pass");
+				} else {
+					throw new Error("register is not a function");
+				}
+			} catch (error) {
+				test2Result.innerHTML = `<span style="color: red;">❌ Registry import failed: ${error.message}</span>`;
+				test2Result.parentElement.classList.add("fail");
+			}
+
+			// Test 3: Basic element registration
+			const test3Result = document.getElementById("test3-result");
+			try {
+				const testElement = document.getElementById("test-element");
+				console.log("Test element:", testElement);
+
+				const registered = register(testElement);
+				console.log("Registration result:", registered);
+
+				test3Result.innerHTML =
+					'<span style="color: green;">✅ Element registration completed</span>';
+				test3Result.parentElement.classList.add("pass");
+			} catch (error) {
+				console.error("Registration error:", error);
+				test3Result.innerHTML = `<span style="color: red;">❌ Element registration failed: ${error.message}</span>`;
+				test3Result.parentElement.classList.add("fail");
+			}
+
+			// Test 4: Expression parser
+			const test4Result = document.getElementById("test4-result");
+			try {
+				// Try to import and use expression parser directly
+				import("./src/expression-parser.js")
+					.then((parser) => {
+						console.log("Expression parser:", parser);
+
+						// Test basic expression
+						const testExpr = "user.name";
+						const result = parser.default(testExpr);
+						console.log("Expression result:", result);
+
+						if (result && typeof result.fn === "function") {
+							const testResult = result.fn({
+								user: { name: "Test" },
+							});
+							console.log("Expression evaluation:", testResult);
+
+							test4Result.innerHTML = `<span style="color: green;">✅ Expression parser works: "${testExpr}" → "${testResult}"</span>`;
+							test4Result.parentElement.classList.add("pass");
+						} else {
+							throw new Error(
+								"Expression parser returned invalid result"
+							);
+						}
+					})
+					.catch((error) => {
+						console.error("Expression parser error:", error);
+						test4Result.innerHTML = `<span style="color: red;">❌ Expression parser failed: ${error.message}</span>`;
+						test4Result.parentElement.classList.add("fail");
+					});
+			} catch (error) {
+				console.error("Expression parser import error:", error);
+				test4Result.innerHTML = `<span style="color: red;">❌ Expression parser import failed: ${error.message}</span>`;
+				test4Result.parentElement.classList.add("fail");
+			}
+
+			console.log("🧪 Running Manifold tests...");
+		</script>
+	</body>
+</html>

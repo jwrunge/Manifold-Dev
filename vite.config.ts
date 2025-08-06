@@ -4,7 +4,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 export default defineConfig({
 	build: {
 		target: "ES2022",
-		minify: true,
+		minify: false, // Disable minification for debugging
 		lib: {
 			entry: "src/index.ts",
 			name: "Manifold",
@@ -23,14 +23,6 @@ export default defineConfig({
 			},
 		},
 	},
-	server: {
-		hmr: false,
-		headers: {
-			"Cross-Origin-Embedder-Policy": "require-corp",
-			"Cross-Origin-Opener-Policy": "same-origin",
-		},
-	},
-	base: "./",
 	esbuild: {
 		// Use esbuild's property mangling
 		mangleProps: /^(_|#)/, // Mangle properties starting with underscore

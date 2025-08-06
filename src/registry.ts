@@ -15,6 +15,7 @@ export class RegEl {
 	_props: Props = {};
 	_show: State<unknown> | undefined;
 	_each: State<unknown[]> | undefined;
+	_cachedContent: RegisterableEl | null = null;
 
 	static register(element: RegisterableEl) {
 		return RegEl.#registry.get(element) ?? new RegEl(element);
@@ -22,6 +23,7 @@ export class RegEl {
 
 	constructor(element: RegisterableEl) {
 		this.#element = element;
+		this._cachedContent = element.cloneNode(true) as RegisterableEl;
 
 		// Traverse ancestors to find inherited props
 		let parent = this.#element.parentElement;
@@ -34,6 +36,9 @@ export class RegEl {
 
 		// Process attributes
 		const pendingEffects: (() => void)[] = [];
+		let conditionalFn: CtxFunction | undefined;
+		let eachFn: CtxFunction | undefined;
+		let asyncFn: CtxFunction | undefined;
 
 		for (const attr of element.attributes) {
 			if (!attr.value[_startsWith]("${")) continue;
@@ -45,38 +50,49 @@ export class RegEl {
 
 			// Process bind and sync expressions
 			for (const [i, part] of parts.entries()) {
-				const { fn, _stateRefs } = _evaluateExpression(
-					part.slice(2, -1)
-				); // Remove ${ and }
+				const result = _evaluateExpression(part.slice(2, -1));
+				const { fn, _stateRefs } = result || {};
 
 				if (fn) {
 					if (i === 0) bindFn = fn;
 					else syncFn = fn;
 				}
 
-				for (const { _name: name, _state: state } of _stateRefs) {
-					this._props[name] ??= state;
+				if (_stateRefs) {
+					for (const { _name: name, _state: state } of Array.from(_stateRefs)) {
+						this._props[name] ??= state;
+					}
 				}
 			}
 
-			// Create effects
-			if (bindFn) {
-				const bindState = State._createComputed(() =>
-					bindFn!(this._props)
-				);
-				pendingEffects.push(() => {
-					bindState.effect(() => {
-						this.#setProp(attr.name, bindState.value);
-						syncFn?.(this._props);
+			if ([`data-if`, `data-elseif`, `data-else`].includes(attr.name)) {
+				conditionalFn = bindFn;
+			} else if (attr.name === `data-each`) {
+				eachFn = bindFn;
+			} else if (
+				[`data-await`, `data-then`, `data-catch`].includes(attr.name)
+			) {
+				asyncFn = bindFn;
+			} else {
+				// Create effects
+				if (bindFn) {
+					const bindState = State.createComputed(() =>
+						bindFn!(this._props)
+					);
+					pendingEffects.push(() => {
+						bindState.effect(() => {
+							this.#setProp(attr.name, bindState.value);
+							syncFn?.(this._props);
+						});
 					});
-				});
-			}
+				}
 
-			if (isEventHandler && syncFn) {
-				element.removeAttribute(attr.name);
-				element.addEventListener(attr.name.slice(2), () =>
-					syncFn!(this._props)
-				);
+				if (isEventHandler && syncFn) {
+					element.removeAttribute(attr.name);
+					element.addEventListener(attr.name.slice(2), () =>
+						syncFn!(this._props)
+					);
+				}
 			}
 		}
 
@@ -122,118 +138,97 @@ export class RegEl {
 			}
 		}
 
-		const isElseOrElseIf = exps.has("elseif") ?? isElse;
-
-		const [conditional, processing] =
-			exps.get("if") ?? exps.get("elseif") ?? isElse
-				? [(_props: Props) => true, null]
-				: [];
 		let showState: State<unknown> | undefined;
-
-		// Warn if processing clause
-		if (processing) _warnOnExtraClause("conditional", _element);
-
-		if (conditional) {
-			if (isElseOrElseIf) {
+		if (conditionalFn) {
+			if (isElse || isElseIf) {
 				const conditionalStates: State<unknown>[] = [];
 
 				// Find all previous conditional elements (data-if, data-elseif) in this conditional chain
-				let cond = _element.previousElementSibling;
-				const hasIf = _element.dataset?.["if"];
+				let cond = element.previousElementSibling;
 				while (cond) {
-					if (hasIf || isElseOrElseIf) {
-						const show = RegEl.#registry.get(
-							cond as Element
-						)?._show;
-						if (show) {
-							conditionalStates.unshift(show);
-						}
+					const show = RegEl.#registry.get(cond as Element)?._show;
+					if (show) {
+						conditionalStates.unshift(show);
 					} else break;
-					if (hasIf) break;
 					cond = cond.previousElementSibling;
 				}
 
-				showState = computed(
+				showState = State.createComputed(
 					() =>
 						!conditionalStates.some((s) => s.value) &&
-						conditional(this.props)
+						conditionalFn(this._props)
 				);
-			} else showState = computed(() => conditional(this.props));
+			} else
+				showState = State.createComputed(() =>
+					conditionalFn(this._props)
+				);
 		}
 
-		// Handle async operations
-		const awaitExp = exps.get("await");
-		const thenExp = exps.get("then");
-		const catchExp = exps.get("catch");
+		// if (isAwait) {
+		// 	const awaitState = derived(async () => {
+		// 		try {
+		// 			const promise = asyncFn?.(this._props);
+		// 			if (promise instanceof Promise) {
+		// 				return await promise;
+		// 			}
+		// 			return promise;
+		// 		} catch (error) {
+		// 			throw error;
+		// 		}
+		// 	});
 
-		if (awaitExp) {
-			// Warn if processing clause for await
-			if (awaitExp.at(1)) _warnOnExtraClause("await", _element);
+		// 	awaitState.effect(async () => {
+		// 		try {
+		// 			const result = await awaitState.value;
 
-			const awaitState = computed(async () => {
-				try {
-					const promise = awaitExp.at(0)?.(this.props);
-					if (promise instanceof Promise) {
-						return await promise;
-					}
-					return promise;
-				} catch (error) {
-					throw error;
-				}
-			});
+		// 			// Execute data-then if available
+		// 			if (thenExp) {
+		// 				if (thenExp.at(1)) _warnOnExtraClause("then", _element);
 
-			awaitState.effect(async () => {
-				try {
-					const result = await awaitState.value;
+		// 				// Pass the resolved value as a prop
+		// 				const thenProps = { ...this.props, $result: result };
+		// 				thenExp.at(0)?.(thenProps);
+		// 			}
+		// 		} catch (error) {
+		// 			// Execute data-catch if available
+		// 			if (catchExp) {
+		// 				if (catchExp.at(1))
+		// 					_warnOnExtraClause("catch", _element);
 
-					// Execute data-then if available
-					if (thenExp) {
-						if (thenExp.at(1)) _warnOnExtraClause("then", _element);
-
-						// Pass the resolved value as a prop
-						const thenProps = { ...this.props, $result: result };
-						thenExp.at(0)?.(thenProps);
-					}
-				} catch (error) {
-					// Execute data-catch if available
-					if (catchExp) {
-						if (catchExp.at(1))
-							_warnOnExtraClause("catch", _element);
-
-						// Pass the error as a prop
-						const catchProps = { ...this.props, $error: error };
-						catchExp.at(0)?.(catchProps);
-					} else {
-						console.error(
-							"Unhandled async error:",
-							error,
-							_element
-						);
-					}
-				}
-			});
-		} else if (thenExp || catchExp) {
-			if (thenExp && !awaitExp) {
-				console.warn("data-then found without data-await", _element);
-			}
-			if (catchExp && !awaitExp && !thenExp) {
-				console.warn(
-					"data-catch found without data-await or data-then",
-					_element
-				);
-			}
-		}
+		// 				// Pass the error as a prop
+		// 				const catchProps = { ...this.props, $error: error };
+		// 				catchExp.at(0)?.(catchProps);
+		// 			} else {
+		// 				console.error(
+		// 					"Unhandled async error:",
+		// 					error,
+		// 					_element
+		// 				);
+		// 			}
+		// 		}
+		// 	});
+		// } else if (thenExp || catchExp) {
+		// 	if (thenExp && !awaitExp) {
+		// 		console.warn("data-then found without data-await", _element);
+		// 	}
+		// 	if (catchExp && !awaitExp && !thenExp) {
+		// 		console.warn(
+		// 			"data-catch found without data-await or data-then",
+		// 			_element
+		// 		);
+		// 	}
+		// }
 
 		// Set up main display states
 		this._show = showState;
 		const showHide = () => {
-			this._element.style.display = this._show?.value ? "" : "none";
+			element.style.display = this._show?.value ? "" : "none";
 		};
 		this._show?.effect(showHide);
 		showHide();
 
-		this._each = computed(
-			() => exps.get("each")?.[0]?.(this.props) ?? []
+		this._each = State.createComputed(
+			() => eachFn?.(this._props) ?? []
 		) as State<unknown[]>;
 
 		this._each?.effect(() => {
@@ -242,7 +237,7 @@ export class RegEl {
 			let highestValidIndex = -1;
 			let removeMode = false;
 
-			for (const child of Array.from(_element.childNodes)) {
+			for (const child of Array.from(element.childNodes)) {
 				if (
 					child.nodeType === Node.COMMENT_NODE &&
 					child.textContent?.startsWith("#MFENDI-")
@@ -253,7 +248,7 @@ export class RegEl {
 						if (index >= intendedCount) {
 							// Mark removal mode and remove this comment
 							removeMode = true;
-							_element.removeChild(child);
+							element.removeChild(child);
 						} else {
 							// This is a valid comment node
 							highestValidIndex = Math.max(
@@ -263,7 +258,7 @@ export class RegEl {
 						}
 					}
 				} else if (removeMode) {
-					_element.removeChild(child);
+					element.removeChild(child);
 				}
 			}
 
@@ -283,7 +278,7 @@ export class RegEl {
 					fragment.appendChild(commentNode);
 				}
 
-				_element.appendChild(fragment);
+				element.appendChild(fragment);
 			}
 		});
 
@@ -340,18 +335,21 @@ export class RegEl {
 		const originalText = textNode.textContent || "";
 		const expressions: Array<[string, State<unknown>]> = [];
 
-		let match;
-		while ((match = /\$\{[^}]*\}/g.exec(originalText))) {
-			const { _stateRefs, fn } = _evaluateExpression(
-				match[0].slice(2, -1)
-			);
+		// Use matchAll to properly find all expressions
+		const matches = Array.from(originalText.matchAll(/\$\{[^}]*\}/g));
 
-			for (const { _name: name, _state: state } of _stateRefs) {
-				this._props[name] ??= state;
+		for (const match of matches) {
+			const result = _evaluateExpression(match[0].slice(2, -1));
+			const { _stateRefs, fn } = result || {};
+
+			if (_stateRefs) {
+				for (const { _name: name, _state: state } of Array.from(_stateRefs)) {
+					this._props[name] ??= state;
+				}
 			}
 
 			if (fn) {
-				const state = State._createComputed(() => fn(this._props));
+				const state = State.createComputed(() => fn(this._props));
 				expressions.push([match[0], state]);
 			}
 		}
