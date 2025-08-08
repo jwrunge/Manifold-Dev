@@ -96,3 +96,5 @@ BUG NOTES:
 -   No UI update if you remove a value. arr[5] still exists in UI after arr.pop() when length === 6.
 -   Infinite reactivity loop if arr is derived from arrLen and then arr[x] is changed.
 -   Individual UI loop elements aren't reactive when accessing loop_iter[x]
+
+https://www.jonoalderson.com/conjecture/its-time-for-modern-css-to-kill-the-spa/

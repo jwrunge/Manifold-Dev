@@ -18,12 +18,43 @@ export class RegEl {
 	_cachedContent: RegisterableEl | null = null;
 
 	static register(element: RegisterableEl) {
-		return RegEl.#registry.get(element) ?? new RegEl(element);
+		console.log(
+			`📝 Attempting to register element:`,
+			element?.tagName,
+			element?.outerHTML
+		);
+
+		if (!element) {
+			console.warn("Cannot register undefined element");
+			return;
+		}
+
+		const existing = RegEl.#registry.get(element);
+		if (existing) {
+			console.log(`♻️ Element already registered`);
+			return existing;
+		}
+
+		console.log(`🆕 Creating new RegEl for element`);
+		return new RegEl(element);
 	}
 
 	constructor(element: RegisterableEl) {
+		console.log(
+			`🏗️ Creating RegEl for element:`,
+			element,
+			element.tagName,
+			element.outerHTML
+		);
+
+		if (!element) {
+			throw new Error("RegEl constructor requires a valid element");
+		}
 		this.#element = element;
 		this._cachedContent = element.cloneNode(true) as RegisterableEl;
+
+		// Register this instance in the WeakMap FIRST to prevent recursion
+		RegEl.#registry.set(element, this);
 
 		// Traverse ancestors to find inherited props
 		let parent = this.#element.parentElement;
@@ -36,11 +67,74 @@ export class RegEl {
 
 		// Process attributes
 		const pendingEffects: (() => void)[] = [];
+		const attributeStates = new Map<string, State<unknown>>(); // Cache states per attribute
 		let conditionalFn: CtxFunction | undefined;
 		let eachFn: CtxFunction | undefined;
 		let asyncFn: CtxFunction | undefined;
 
 		for (const attr of element.attributes) {
+			// Handle onclick attributes specially, even without ${}
+			if (attr.name === "onclick") {
+				console.log(`🖱️ Found onclick attribute: ${attr.value}`);
+				element.removeAttribute(attr.name);
+				const handler = _evaluateExpression(attr.value);
+				console.log(`Click handler evaluation result:`, handler);
+				console.log(`Handler properties:`, Object.keys(handler));
+				console.log(
+					`_isArrowFunction value:`,
+					handler._isArrowFunction
+				);
+				console.log(`b property value:`, handler.b);
+
+				// Add debouncing to prevent rapid successive clicks
+				let lastClickTime = 0;
+				const debounceMs = 50; // Prevent clicks within 50ms of each other
+
+				if (handler._isArrowFunction || handler.b) {
+					console.log(`📎 Adding arrow function click listener`);
+					element.addEventListener("click", (event) => {
+						const now = Date.now();
+						if (now - lastClickTime < debounceMs) {
+							console.log(`🚫 Click debounced (too rapid)`);
+							return;
+						}
+						lastClickTime = now;
+
+						// Only process actual user clicks, not programmatic ones
+						if (event.isTrusted === false) {
+							console.log(`🚫 Ignoring programmatic click event`);
+							return;
+						}
+
+						console.log(`🎯 Arrow function click triggered!`);
+						const result = handler.fn({});
+						console.log(`Arrow function result:`, result);
+					});
+				} else {
+					console.log(`📎 Adding regular function click listener`);
+					element.addEventListener("click", (event) => {
+						const now = Date.now();
+						if (now - lastClickTime < debounceMs) {
+							console.log(`🚫 Click debounced (too rapid)`);
+							return;
+						}
+						lastClickTime = now;
+
+						// Only process actual user clicks, not programmatic ones
+						if (event.isTrusted === false) {
+							console.log(`🚫 Ignoring programmatic click event`);
+							return;
+						}
+
+						console.log(`🎯 Regular function click triggered!`);
+						const result = handler.fn({ event, ...this._props });
+						console.log(`Regular function result:`, result);
+					});
+				}
+				console.log(`✅ Click handler attached to element`);
+				continue; // Skip the normal attribute processing for onclick
+			}
+
 			if (!attr.value[_startsWith]("${")) continue;
 
 			const parts = attr.value.split(">>");
@@ -59,7 +153,9 @@ export class RegEl {
 				}
 
 				if (_stateRefs) {
-					for (const { _name: name, _state: state } of Array.from(_stateRefs)) {
+					for (const { _name: name, _state: state } of Array.from(
+						_stateRefs
+					)) {
 						this._props[name] ??= state;
 					}
 				}
@@ -74,23 +170,30 @@ export class RegEl {
 			) {
 				asyncFn = bindFn;
 			} else {
-				// Create effects
+				// Create effects - but reuse states for same attribute expressions
 				if (bindFn) {
-					const bindState = State.createComputed(() =>
-						bindFn!(this._props)
-					);
+					const stateKey = `${attr.name}:${attr.value}`;
+					let bindState = attributeStates.get(stateKey);
+					if (!bindState) {
+						bindState = State.createComputed(() =>
+							bindFn!(this._props)
+						);
+						attributeStates.set(stateKey, bindState);
+					}
+
 					pendingEffects.push(() => {
-						bindState.effect(() => {
-							this.#setProp(attr.name, bindState.value);
+						bindState!.effect(() => {
+							this.#setProp(attr.name, bindState!.value);
 							syncFn?.(this._props);
 						});
 					});
 				}
 
-				if (isEventHandler && syncFn) {
+				if (isEventHandler && (bindFn || syncFn)) {
 					element.removeAttribute(attr.name);
+					const handlerFn = syncFn || bindFn; // Use syncFn if available, otherwise bindFn
 					element.addEventListener(attr.name.slice(2), () =>
-						syncFn!(this._props)
+						handlerFn!(this._props)
 					);
 				}
 			}
@@ -141,27 +244,39 @@ export class RegEl {
 		let showState: State<unknown> | undefined;
 		if (conditionalFn) {
 			if (isElse || isElseIf) {
-				const conditionalStates: State<unknown>[] = [];
+				// Defer the conditional state creation to avoid circular dependencies
+				// during the registration phase
+				showState = State.createComputed(() => {
+					const conditionalStates: State<unknown>[] = [];
 
-				// Find all previous conditional elements (data-if, data-elseif) in this conditional chain
-				let cond = element.previousElementSibling;
-				while (cond) {
-					const show = RegEl.#registry.get(cond as Element)?._show;
-					if (show) {
-						conditionalStates.unshift(show);
-					} else break;
-					cond = cond.previousElementSibling;
-				}
+					// Find all previous conditional elements (data-if, data-elseif) in this conditional chain
+					let cond = element.previousElementSibling;
+					while (cond) {
+						const regEl = RegEl.#registry.get(cond as Element);
+						const show = regEl?._show;
+						if (
+							show &&
+							(cond.hasAttribute("data-if") ||
+								cond.hasAttribute("data-elseif"))
+						) {
+							conditionalStates.unshift(show);
+						} else {
+							// Stop if we hit an element that's not part of the conditional chain
+							break;
+						}
+						cond = cond.previousElementSibling;
+					}
 
-				showState = State.createComputed(
-					() =>
+					return (
 						!conditionalStates.some((s) => s.value) &&
 						conditionalFn(this._props)
-				);
-			} else
+					);
+				});
+			} else {
 				showState = State.createComputed(() =>
 					conditionalFn(this._props)
 				);
+			}
 		}
 
 		// if (isAwait) {
@@ -222,7 +337,13 @@ export class RegEl {
 		// Set up main display states
 		this._show = showState;
 		const showHide = () => {
-			element.style.display = this._show?.value ? "" : "none";
+			// Only hide elements if they have a conditional state that evaluates to false
+			// Elements without conditions should always be visible
+			if (this._show) {
+				element.style.display = this._show.value ? "" : "none";
+			} else {
+				element.style.display = ""; // Show elements without conditions
+			}
 		};
 		this._show?.effect(showHide);
 		showHide();
@@ -284,12 +405,33 @@ export class RegEl {
 
 		for (const effect of pendingEffects) effect();
 		this.#traverseNodes(element);
-		RegEl.#registry.set(element, this);
+		// Note: element is already registered in WeakMap at start of constructor
 	}
 
 	#setProp = (prop: string, value: unknown) => {
-		if (prop in this.#element) (this.#element as any)[prop] = value;
-		else this.#element.setAttribute(prop, String(value ?? ""));
+		// Special handling for input elements to prevent browser parsing errors
+		if (this.#element instanceof HTMLInputElement && prop === "value") {
+			// For input elements, ensure the value is properly converted
+			if (this.#element.type === "number") {
+				const numValue = Number(value);
+				if (!isNaN(numValue)) {
+					this.#element.value = String(numValue);
+				} else {
+					this.#element.value = ""; // Clear invalid values
+				}
+				return;
+			} else {
+				this.#element.value = String(value ?? "");
+				return;
+			}
+		}
+
+		// For other properties and elements
+		if (prop in this.#element) {
+			(this.#element as any)[prop] = value;
+		} else {
+			this.#element.setAttribute(prop, String(value ?? ""));
+		}
 	};
 
 	#traverseNodes(node: Node) {
@@ -313,7 +455,8 @@ export class RegEl {
 				}
 
 				if (hasBinding) {
-					new RegEl(element);
+					// Use register method to avoid creating duplicate RegEl instances
+					RegEl.register(element);
 					continue;
 				}
 
@@ -334,38 +477,51 @@ export class RegEl {
 	#processTextNode(textNode: Text) {
 		const originalText = textNode.textContent || "";
 		const expressions: Array<[string, State<unknown>]> = [];
+		const expressionStates = new Map<string, State<unknown>>(); // Cache states
 
 		// Use matchAll to properly find all expressions
 		const matches = Array.from(originalText.matchAll(/\$\{[^}]*\}/g));
 
 		for (const match of matches) {
-			const result = _evaluateExpression(match[0].slice(2, -1));
-			const { _stateRefs, fn } = result || {};
+			const expression = match[0].slice(2, -1);
+			let state = expressionStates.get(expression);
 
-			if (_stateRefs) {
-				for (const { _name: name, _state: state } of Array.from(_stateRefs)) {
-					this._props[name] ??= state;
+			if (!state) {
+				const result = _evaluateExpression(expression);
+				const { _stateRefs, fn } = result || {};
+
+				if (_stateRefs) {
+					for (const { _name: name, _state: st } of Array.from(
+						_stateRefs
+					)) {
+						this._props[name] ??= st;
+					}
+				}
+
+				if (fn) {
+					state = State.createComputed(() => fn(this._props));
+					expressionStates.set(expression, state);
 				}
 			}
 
-			if (fn) {
-				const state = State.createComputed(() => fn(this._props));
+			if (state) {
 				expressions.push([match[0], state]);
 			}
 		}
 
 		if (expressions.length) {
-			for (const [, state] of expressions) {
-				state.effect(() => {
-					let newText = originalText;
-					for (const [matchStr, state] of expressions) {
-						newText = newText.replaceAll(
-							matchStr,
-							`${state.value}`
-						);
-					}
-					textNode.textContent = newText;
-				});
+			// Create single effect that updates the text node
+			const updateText = () => {
+				let newText = originalText;
+				for (const [matchStr, state] of expressions) {
+					newText = newText.replaceAll(matchStr, `${state.value}`);
+				}
+				textNode.textContent = newText;
+			};
+
+			// Create effect for the combined update
+			if (expressions.length > 0) {
+				expressions[0][1].effect(updateText);
 			}
 		}
 	}

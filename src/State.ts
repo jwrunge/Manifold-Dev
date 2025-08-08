@@ -2,6 +2,10 @@ import _isEqual from "./equality";
 
 let _currentEffect: Effect | null = null;
 let _pending = new Set<Effect>();
+const MAX_UPDATE_DEPTH = 100;
+
+const _runningEffects = new Set<Effect>(); // Track currently running effects
+const _updateDepths = new Map<Effect, number>(); // Track update depths per effect
 
 const _deps = new Map<string, Set<Effect>>(),
 	_S = String,
@@ -22,18 +26,46 @@ const _trigger = (path: string) => {
 	_flush();
 };
 
-const _runningEffects = new Set<Effect>(); // Track currently running effects
-
 const _flush = () => {
 	if (!_pending.size) return;
 	const effects = [..._pending];
 	_pending.clear();
+
 	for (const effect of effects) {
+		// Check for circular dependencies using the running effects set
 		if (_runningEffects.has(effect)) {
-			console.warn('Circular dependency detected, skipping effect to prevent infinite loop');
+			console.warn(
+				"Circular dependency detected, skipping effect to prevent infinite loop"
+			);
 			continue;
 		}
-		effect._run();
+
+		// Check update depth per effect
+		const currentDepth = (_updateDepths.get(effect) || 0) + 1;
+		_updateDepths.set(effect, currentDepth);
+
+		if (currentDepth > MAX_UPDATE_DEPTH) {
+			console.warn(
+				`Effect exceeded maximum update depth (${MAX_UPDATE_DEPTH}), stopping to prevent infinite loop`
+			);
+			_updateDepths.delete(effect);
+			continue;
+		}
+
+		// Mark effect as running before execution
+		_runningEffects.add(effect);
+
+		try {
+			effect._run();
+		} finally {
+			// Always remove from running effects, even if error occurs
+			_runningEffects.delete(effect);
+		}
+
+		// Reset depth after successful run if effect is not pending again
+		if (!_pending.has(effect)) {
+			_updateDepths.delete(effect);
+		}
 	}
 };
 
@@ -76,21 +108,18 @@ class Effect {
 
 	_run() {
 		if (!this._active) return;
-		if (_runningEffects.has(this)) {
-			console.warn('Circular dependency detected in effect, preventing recursion');
-			return;
-		}
-		
+
+		// Clear previous dependencies
 		this._deps.forEach((cleanup) => cleanup());
 		this._deps.clear();
+
+		// Set current effect and run function
 		const prev = _currentEffect;
 		_currentEffect = this;
-		_runningEffects.add(this);
 		try {
 			this.fn();
 		} finally {
 			_currentEffect = prev;
-			_runningEffects.delete(this);
 		}
 	}
 
@@ -123,14 +152,14 @@ export class State<T = unknown> {
 		const state = new State(undefined as any, name);
 		state.#derive = deriveFn;
 		state.#isComputed = true;
-		
+
 		effect(() => {
 			const newValue = deriveFn();
 			if (!_isEqual(_globalStore._states[state._name], newValue)) {
 				_globalStore._states[state._name] = newValue;
 			}
 		});
-		
+
 		return state;
 	}
 

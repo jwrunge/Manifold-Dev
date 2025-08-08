@@ -33,7 +33,6 @@ const PROP_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*(?:[.\[][\w\]]*)*$/,
 		if (target != null && finalPart != null)
 			target[/^\d+$/.test(finalPart) ? +finalPart : finalPart] = value;
 	};
-
 export interface ExpressionResult {
 	fn: CtxFunction;
 	_stateRefs: Set<{ _name: string; _state: State<unknown> }>;
@@ -46,12 +45,41 @@ const _evaluateExpression = (expr?: string): ExpressionResult => {
 	expr = expr?.trim();
 	if (!expr) return { fn: () => undefined, _stateRefs: new Set() };
 
+	// Handle parameterized arrow functions: (param) => expression
 	const a = expr.match(/^\s*\(\s*(\w+)\s*\)\s*=>\s*(.+)$/);
 	if (a?.[1] && a[2]) {
 		const b = _evaluateExpression(
 			a[2].replace(new RegExp(`\\b${a[1]}\\b`, "g"), "arg")
 		);
 		return { ...b, _isArrowFunction: true };
+	}
+
+	// Handle parameterless arrow functions: () => expression
+	const parameterlessArrow = expr.match(/^\s*\(\s*\)\s*=>\s*(.+)$/);
+	console.log(
+		`🔍 Checking parameterless arrow for "${expr}":`,
+		parameterlessArrow
+	);
+	if (parameterlessArrow?.[1]) {
+		console.log(
+			`✅ Detected parameterless arrow function: () => ${parameterlessArrow[1]}`
+		);
+		const bodyExpr = parameterlessArrow[1];
+		const b = _evaluateExpression(bodyExpr);
+		console.log(`Arrow body evaluation result:`, b);
+
+		const result = {
+			...b,
+			_isArrowFunction: true,
+			fn: (c: any) => {
+				// For arrow functions, we need to ensure global variables are accessible
+				// Create a context that includes both props and global variables
+				const mergedContext = { ...window, ...c };
+				return b.fn(mergedContext);
+			},
+		};
+		console.log(`Final arrow function result:`, result);
+		return result;
 	}
 
 	const m = expr.match(
@@ -62,12 +90,119 @@ const _evaluateExpression = (expr?: string): ExpressionResult => {
 		return {
 			fn: (c) => {
 				const x = v.fn(c);
-				_setProp(m[1]!, x, c);
+				const varName = m[1]!;
+
+				console.log(`🔧 Assignment operation: ${varName} = ${x}`);
+
+				// Check if it's a simple variable name (no dots or brackets)
+				const isSimpleVar = /^[a-zA-Z_$][\w]*$/.test(varName);
+
+				if (isSimpleVar) {
+					// Handle State objects for simple variables
+					const stateObj = window[varName];
+					const isState =
+						stateObj &&
+						typeof stateObj === "object" &&
+						"value" in stateObj;
+
+					console.log(
+						`window[${varName}]:`,
+						stateObj,
+						isState ? "(State object)" : "(primitive)"
+					);
+
+					if (isState) {
+						stateObj.value = x;
+						console.log(
+							`Updated State: window[${varName}].value = ${x}`
+						);
+					} else {
+						window[varName] = x;
+						console.log(`Assigned to window[${varName}] = ${x}`);
+					}
+				} else {
+					// Use original _setProp for complex property paths
+					_setProp(varName, x, c);
+					console.log(`Set property: ${varName} = ${x}`);
+				}
+
 				return x;
 			},
 			_stateRefs: v._stateRefs,
 			_isAssignment: true,
 			_assignTarget: m[1],
+		};
+	}
+
+	// Handle increment and decrement operators (MOVED UP to avoid conflicts with + operator)
+	const incrementMatch = expr.match(/^(.+?)\s*(\+\+|--)\s*$/);
+	if (incrementMatch) {
+		const [, varName, operator] = incrementMatch;
+		return {
+			fn: (context: any) => {
+				console.log(`🔢 Increment operation: ${varName}${operator}`);
+				console.log(`Context:`, context);
+
+				// First check if varName exists in the context (props)
+				let stateObj = context[varName];
+				let isContextState =
+					stateObj &&
+					typeof stateObj === "object" &&
+					"value" in stateObj;
+
+				// If not in context, check window
+				if (!isContextState) {
+					stateObj = window[varName];
+				}
+
+				const isState =
+					stateObj &&
+					typeof stateObj === "object" &&
+					"value" in stateObj;
+
+				console.log(
+					`${isContextState ? "context" : "window"}[${varName}]:`,
+					stateObj,
+					isState ? "(State object)" : "(primitive)"
+				);
+
+				// Get current value, defaulting to 0 if undefined
+				let current;
+				if (isState) {
+					current = stateObj.value;
+				} else if (isContextState) {
+					current = stateObj;
+				} else {
+					current = window[varName] || 0;
+				}
+
+				console.log(`Current value:`, current, typeof current);
+
+				const newValue =
+					operator === "++"
+						? Number(current) + 1
+						: Number(current) - 1;
+				console.log(`New value:`, newValue);
+
+				// Update State object or primitive value
+				if (isState) {
+					stateObj.value = newValue;
+					console.log(
+						`Updated State: ${
+							isContextState ? "context" : "window"
+						}[${varName}].value = ${newValue}`
+					);
+				} else if (isContextState) {
+					context[varName] = newValue;
+					console.log(`Updated context[${varName}] = ${newValue}`);
+				} else {
+					window[varName] = newValue;
+					console.log(`Assigned to window[${varName}] = ${newValue}`);
+				}
+
+				return newValue;
+			},
+			_stateRefs: new Set(),
 		};
 	}
 
@@ -276,6 +411,39 @@ const _evaluateExpression = (expr?: string): ExpressionResult => {
 			}
 			return y;
 		});
+
+	// Handle pre-increment and pre-decrement operators
+	const preIncrementMatch = expr.match(
+		/^(\+\+|\-\-)([a-zA-Z_$][\w]*(?:\.[\w]+|\[\d+\])*)$/
+	);
+	if (preIncrementMatch?.[1] && preIncrementMatch[2]) {
+		const operator = preIncrementMatch[1];
+		const varName = preIncrementMatch[2];
+
+		return _createResult((x: any) => {
+			// For State objects, we need to modify the .value property
+			const variable = _evalProp(varName, x);
+			if (
+				variable &&
+				typeof variable === "object" &&
+				"value" in variable
+			) {
+				// This is a State object
+				const oldValue = variable.value;
+				const newValue =
+					operator === "++" ? oldValue + 1 : oldValue - 1;
+				variable.value = newValue;
+				return newValue; // Pre-increment/decrement returns new value
+			} else {
+				// Regular variable
+				const currentValue = _evalProp(varName, x);
+				const newValue =
+					operator === "++" ? currentValue + 1 : currentValue - 1;
+				_setProp(varName, newValue, x);
+				return newValue; // Pre-increment/decrement returns new value
+			}
+		});
+	}
 
 	if (COMP_RE.test(expr)) {
 		const M = expr.match(COMP_RE);

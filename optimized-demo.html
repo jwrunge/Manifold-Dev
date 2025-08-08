@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>✅ Manifold Framework - Complete Demo (Optimized)</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 900px;
+				margin: 0 auto;
+				padding: 2rem;
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				color: white;
+				min-height: 100vh;
+			}
+			.container {
+				background: rgba(255, 255, 255, 0.1);
+				backdrop-filter: blur(10px);
+				border-radius: 20px;
+				padding: 2rem;
+				border: 1px solid rgba(255, 255, 255, 0.2);
+			}
+			.feature {
+				background: rgba(255, 255, 255, 0.1);
+				margin: 1.5rem 0;
+				padding: 1.5rem;
+				border-radius: 12px;
+				border: 1px solid rgba(255, 255, 255, 0.2);
+			}
+			.feature h3 {
+				margin-top: 0;
+				color: #a8f5ff;
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+			}
+			button {
+				background: linear-gradient(45deg, #ff6b6b, #feca57);
+				color: white;
+				border: none;
+				padding: 10px 20px;
+				border-radius: 8px;
+				cursor: pointer;
+				font-weight: bold;
+				margin: 5px;
+				transition: transform 0.2s;
+			}
+			button:hover {
+				transform: translateY(-2px);
+			}
+			button:disabled {
+				background: #666;
+				cursor: not-allowed;
+				transform: none;
+			}
+			input,
+			select {
+				background: rgba(255, 255, 255, 0.2);
+				border: 1px solid rgba(255, 255, 255, 0.3);
+				border-radius: 6px;
+				padding: 8px 12px;
+				color: white;
+				margin: 5px;
+			}
+			input::placeholder {
+				color: rgba(255, 255, 255, 0.7);
+			}
+			.status {
+				display: inline-block;
+				padding: 4px 12px;
+				border-radius: 20px;
+				font-size: 14px;
+				font-weight: bold;
+				margin: 0 5px;
+			}
+			.active {
+				background: #4ecdc4;
+				color: #2c3e50;
+			}
+			.inactive {
+				background: #e74c3c;
+				color: white;
+			}
+			.todo-item {
+				background: rgba(255, 255, 255, 0.1);
+				margin: 8px 0;
+				padding: 12px;
+				border-radius: 8px;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			.completed {
+				opacity: 0.6;
+				text-decoration: line-through;
+			}
+			.counter-big {
+				font-size: 3rem;
+				font-weight: bold;
+				text-align: center;
+				color: #a8f5ff;
+				text-shadow: 0 0 20px rgba(168, 245, 255, 0.5);
+			}
+			.success {
+				color: #4ecdc4;
+			}
+			.warning {
+				color: #feca57;
+			}
+			.error {
+				color: #ff6b6b;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>🎉 Manifold Framework - Complete Demo (Optimized)</h1>
+			<p>
+				All spec.md features working with optimized reactivity system.
+			</p>
+
+			<!-- Element Registration & Text Interpolation -->
+			<div class="feature" data-mf-register>
+				<h3>🎯 Element Registration & Text Interpolation</h3>
+				<p>
+					Welcome <strong>${user.name}</strong>! You are ${user.age}
+					years old.
+				</p>
+				<p>
+					Status:
+					<span
+						class="status ${user.isActive ? 'active' : 'inactive'}"
+						>${user.isActive ? 'Active' : 'Inactive'}</span
+					>
+				</p>
+				<button onclick="${() => toggleUserStatus()}">
+					Toggle Status
+				</button>
+			</div>
+
+			<!-- Reactive Counter -->
+			<div class="feature" data-mf-register>
+				<h3>⚡ Reactive State & Complex Expressions</h3>
+				<div class="counter-big">${counter}</div>
+				<p
+					class="${counter > 10 ? 'success' : counter > 5 ? 'warning' : 'error'}"
+				>
+					${counter === 0 ? 'Zero!' : counter > 10 ? 'High!' : counter
+					> 5 ? 'Medium' : 'Low'}
+				</p>
+				<div>
+					<button onclick="${() => counter--}">➖</button>
+					<button onclick="${() => counter = 0}">Reset</button>
+					<button onclick="${() => counter++}">➕</button>
+					<button onclick="${() => counter += 5}">+5</button>
+				</div>
+			</div>
+
+			<!-- Conditional Rendering -->
+			<div class="feature" data-mf-register>
+				<h3>🎭 Conditional Rendering (data-if/elseif/else)</h3>
+				<div>
+					<label>Test Score: </label>
+					<input
+						type="number"
+						value="85"
+						min="0"
+						max="100"
+						onchange="${event => score = parseInt(event.target.value) || 0}"
+					/>
+				</div>
+
+				<div data-if="${score >= 90}" class="success">
+					🌟 Excellent! You got an A! (${score}%)
+				</div>
+				<div data-elseif="${score >= 80}" class="success">
+					👍 Great job! You got a B! (${score}%)
+				</div>
+				<div data-elseif="${score >= 70}" class="warning">
+					👌 Good work! You got a C! (${score}%)
+				</div>
+				<div data-elseif="${score >= 60}" class="warning">
+					📚 You passed with a D (${score}%)
+				</div>
+				<div data-else class="error">
+					📖 You need to study more! Grade: F (${score}%)
+				</div>
+			</div>
+
+			<!-- List Rendering -->
+			<div class="feature" data-mf-register>
+				<h3>📝 List Rendering with data-each</h3>
+				<div>
+					<input
+						type="text"
+						placeholder="New todo..."
+						onchange="${event => todoInput = event.target.value}"
+					/>
+					<button onclick="${() => addTodo()}">Add Todo</button>
+				</div>
+
+				<div data-each="${todos}">
+					<div class="todo-item ${item.completed ? 'completed' : ''}">
+						<span>${item.text}</span>
+						<div>
+							<button onclick="${() => toggleTodo(item.id)}">
+								${item.completed ? 'Undo' : 'Done'}
+							</button>
+							<button onclick="${() => removeTodo(item.id)}">
+								Remove
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Number Guessing Game -->
+			<div class="feature" data-mf-register>
+				<h3>🎲 Number Guessing Game</h3>
+				<div data-if="${!game.started}">
+					<button onclick="${() => startGame()}">Start Game</button>
+				</div>
+
+				<div data-if="${game.started && !game.won}">
+					<p>
+						I'm thinking of a number between 1-100. Attempts:
+						${game.attempts}
+					</p>
+					<input
+						type="number"
+						min="1"
+						max="100"
+						placeholder="Your guess..."
+						onchange="${event => game.guess = parseInt(event.target.value)}"
+					/>
+					<button
+						onclick="${() => makeGuess()}"
+						disabled="${!game.guess}"
+					>
+						Guess!
+					</button>
+
+					<div data-if="${game.lastGuess}">
+						<p
+							class="${game.lastHint === 'correct' ? 'success' : 'warning'}"
+						>
+							${game.lastGuess} is ${game.lastHint}!
+						</p>
+					</div>
+				</div>
+
+				<div data-if="${game.won}" class="success">
+					🎉 Congratulations! You guessed ${game.target} in
+					${game.attempts} attempts!
+					<button onclick="${() => resetGame()}">Play Again</button>
+				</div>
+			</div>
+
+			<!-- Dynamic Styling -->
+			<div class="feature" data-mf-register>
+				<h3>🎨 Dynamic Styling</h3>
+				<select onchange="${event => theme = event.target.value}">
+					<option value="blue">Blue Theme</option>
+					<option value="green">Green Theme</option>
+					<option value="purple" selected>Purple Theme</option>
+					<option value="red">Red Theme</option>
+				</select>
+				<div
+					style="background-color: ${theme === 'blue' ? '#3498db' : theme === 'green' ? '#2ecc71' : theme === 'purple' ? '#9b59b6' : '#e74c3c'}; padding: 20px; border-radius: 8px; margin-top: 10px;"
+				>
+					Current theme: ${theme}
+				</div>
+			</div>
+		</div>
+
+		<script type="module">
+			// Import the Manifold system
+			const { state, register } = await import("./src/index.ts");
+
+			console.log("=== Starting Manifold Framework ===");
+
+			// Create states with proper names
+			window.user = state(
+				{
+					name: "Alex",
+					age: 25,
+					isActive: true,
+				},
+				"user"
+			);
+
+			window.counter = state(0, "counter");
+			window.score = state(85, "score");
+			window.todoInput = state("", "todoInput");
+			window.todos = state(
+				[
+					{ id: 1, text: "Learn Manifold", completed: false },
+					{ id: 2, text: "Build an app", completed: false },
+					{ id: 3, text: "Deploy to production", completed: true },
+				],
+				"todos"
+			);
+
+			window.game = state(
+				{
+					started: false,
+					target: 0,
+					guess: null,
+					lastGuess: null,
+					lastHint: null,
+					attempts: 0,
+					won: false,
+				},
+				"game"
+			);
+
+			window.theme = state("purple", "theme");
+
+			// Define functions
+			window.toggleUserStatus = () => {
+				user.value = { ...user.value, isActive: !user.value.isActive };
+			};
+
+			let nextTodoId = 4;
+			window.addTodo = () => {
+				if (!todoInput.value.trim()) return;
+				const newTodo = {
+					id: nextTodoId++,
+					text: todoInput.value.trim(),
+					completed: false,
+				};
+				todos.value = [...todos.value, newTodo];
+				todoInput.value = "";
+			};
+
+			window.removeTodo = (id) => {
+				todos.value = todos.value.filter((todo) => todo.id !== id);
+			};
+
+			window.toggleTodo = (id) => {
+				todos.value = todos.value.map((todo) =>
+					todo.id === id
+						? { ...todo, completed: !todo.completed }
+						: todo
+				);
+			};
+
+			window.startGame = () => {
+				game.value = {
+					started: true,
+					target: Math.floor(Math.random() * 100) + 1,
+					guess: null,
+					lastGuess: null,
+					lastHint: null,
+					attempts: 0,
+					won: false,
+				};
+			};
+
+			window.makeGuess = () => {
+				if (!game.value.guess) return;
+				const guess = game.value.guess;
+				const target = game.value.target;
+				let hint = "";
+
+				if (guess === target) {
+					hint = "correct";
+					game.value = {
+						...game.value,
+						won: true,
+						lastHint: hint,
+						lastGuess: guess,
+						attempts: game.value.attempts + 1,
+					};
+				} else if (guess < target) {
+					hint = "too low";
+					game.value = {
+						...game.value,
+						lastHint: hint,
+						lastGuess: guess,
+						attempts: game.value.attempts + 1,
+						guess: null,
+					};
+				} else {
+					hint = "too high";
+					game.value = {
+						...game.value,
+						lastHint: hint,
+						lastGuess: guess,
+						attempts: game.value.attempts + 1,
+						guess: null,
+					};
+				}
+			};
+
+			window.resetGame = () => {
+				game.value = {
+					started: false,
+					target: 0,
+					guess: null,
+					lastGuess: null,
+					lastHint: null,
+					attempts: 0,
+					won: false,
+				};
+			};
+
+			console.log("States and functions defined");
+
+			// Register all elements
+			register();
+
+			console.log("✅ Manifold Framework loaded successfully");
+
+			// Test reactivity
+			setTimeout(() => {
+				console.log("=== Running reactivity test ===");
+				const originalCounter = counter.value;
+				counter.value++;
+				const newCounter = counter.value;
+				console.log(`Counter: ${originalCounter} → ${newCounter}`);
+				console.log("✅ Reactivity test completed");
+			}, 1000);
+		</script>
+	</body>
+</html>

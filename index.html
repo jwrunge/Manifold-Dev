@@ -49,14 +49,18 @@
 				background: #a0aec0;
 				cursor: not-allowed;
 			}
-			input, select, textarea {
+			input,
+			select,
+			textarea {
 				padding: 8px;
 				margin: 5px;
 				border: 1px solid #e2e8f0;
 				border-radius: 4px;
 				font-size: 14px;
 			}
-			input:focus, select:focus, textarea:focus {
+			input:focus,
+			select:focus,
+			textarea:focus {
 				outline: none;
 				border-color: #3182ce;
 				box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
@@ -75,8 +79,14 @@
 				font-size: 12px;
 				font-weight: bold;
 			}
-			.status.active { background: #c6f6d5; color: #22543d; }
-			.status.inactive { background: #fed7d7; color: #742a2a; }
+			.status.active {
+				background: #c6f6d5;
+				color: #22543d;
+			}
+			.status.inactive {
+				background: #fed7d7;
+				color: #742a2a;
+			}
 			.list-item {
 				display: flex;
 				justify-content: space-between;
@@ -106,80 +116,114 @@
 				border-radius: 8px;
 				margin: 10px 0;
 			}
-			.error { color: #e53e3e; font-weight: bold; }
-			.success { color: #38a169; font-weight: bold; }
-			.info { color: #3182ce; font-style: italic; }
+			.error {
+				color: #e53e3e;
+				font-weight: bold;
+			}
+			.success {
+				color: #38a169;
+				font-weight: bold;
+			}
+			.info {
+				color: #3182ce;
+				font-style: italic;
+			}
 		</style>
 	</head>
 	<body>
 		<h1>🚀 Manifold Framework - Complete Feature Demonstration</h1>
-		<p>This page demonstrates all Manifold features from the specification (excluding async features).</p>
+		<p>
+			This page demonstrates all Manifold features from the specification
+			(excluding async features).
+		</p>
 
 		<!-- 🎯 Element Registration Demo -->
 		<section class="feature-section">
 			<h2>🎯 Element Registration with data-mf-register</h2>
-			<p>Elements must be registered to enable Manifold processing. Use <code>data-mf-ignore</code> to exclude specific elements.</p>
-			
+			<p>
+				Elements must be registered to enable Manifold processing. Use
+				<code>data-mf-ignore</code> to exclude specific elements.
+			</p>
+
 			<div class="demo-area" data-mf-register>
 				<h3>✅ Registered Area (Manifold Active)</h3>
-				<p>Current user: <strong>${user.name}</strong> (${user.age} years old)</p>
-				<p>Status: <span class="status ${user.isActive ? 'active' : 'inactive'}">${user.isActive ? 'Active' : 'Inactive'}</span></p>
-				
+				<p>
+					Current user: <strong>${user.name}</strong> (${user.age}
+					years old)
+				</p>
+				<p>
+					Status:
+					<span
+						class="status ${user.isActive ? 'active' : 'inactive'}"
+						>${user.isActive ? 'Active' : 'Inactive'}</span
+					>
+				</p>
+
 				<div data-mf-ignore>
 					<h4>❌ Ignored Area (Regular HTML)</h4>
-					<p>This text will not be processed: ${user.name} (should show literal text)</p>
-					<button onclick="alert('Regular JavaScript still works!')">Regular Button</button>
+					<p>
+						This text will not be processed: ${user.name} (should
+						show literal text)
+					</p>
+					<button onclick="alert('Regular JavaScript still works!')">
+						Regular Button
+					</button>
 				</div>
-				
-				<button onclick="${() => toggleUserStatus()}">Toggle User Status</button>
+
+				<button onclick="${() => toggleUserStatus()}">
+					Toggle User Status
+				</button>
 			</div>
 		</section>
 
 		<!-- 🔄 Property Binding Demo -->
 		<section class="feature-section">
 			<h2>🔄 Property Binding with ${} Syntax</h2>
-			<p>Bind element properties and attributes using expression syntax.</p>
-			
+			<p>
+				Bind element properties and attributes using expression syntax.
+			</p>
+
 			<div class="demo-area" data-mf-register>
 				<div class="form-group">
 					<label>Name Input (bound to user.name):</label>
-					<input 
-						type="text" 
-						value="${user.name}" 
+					<input
+						type="text"
+						value="${user.name}"
 						placeholder="Enter your name"
 						onchange="${event => user.name = event.target.value}"
 					/>
 				</div>
-				
+
 				<div class="form-group">
 					<label>Age Input (bound to user.age):</label>
-					<input 
-						type="number" 
-						value="${user.age}" 
-						min="0" 
+					<input
+						type="number"
+						value="${user.age}"
+						min="0"
 						max="120"
 						onchange="${event => user.age = parseInt(event.target.value)}"
 					/>
 				</div>
-				
+
 				<div class="form-group">
 					<label>
-						<input 
-							type="checkbox" 
+						<input
+							type="checkbox"
 							checked="${user.isActive}"
 							onchange="${event => user.isActive = event.target.checked}"
-						/> 
+						/>
 						User is active
 					</label>
 				</div>
-				
+
 				<div class="form-group">
 					<label>Dynamic Button:</label>
-					<button 
+					<button
 						disabled="${!user.name || user.age < 18}"
 						onclick="${() => saveUser()}"
 					>
-						${user.name ? `Save ${user.name}` : 'Enter name to save'}
+						${user.name ? `Save ${user.name}` : 'Enter name to
+						save'}
 					</button>
 				</div>
 			</div>
@@ -189,24 +233,22 @@
 		<section class="feature-section">
 			<h2>⚡ Reactive State & Counter</h2>
 			<p>Demonstrate reactive updates and computed values.</p>
-			
+
 			<div class="demo-area" data-mf-register>
-				<div class="counter-display">
-					Counter: ${counter}
-				</div>
-				
-				<div style="text-align: center;">
+				<div class="counter-display">Counter: ${counter}</div>
+
+				<div style="text-align: center">
 					<button onclick="${() => counter--}">➖ Decrement</button>
 					<button onclick="${() => counter = 0}">🔄 Reset</button>
 					<button onclick="${() => counter++}">➕ Increment</button>
 				</div>
-				
+
 				<p>
-					<strong>Counter Status:</strong> 
-					${counter === 0 ? 'Zero' : counter > 0 ? 'Positive' : 'Negative'}
-					${counter > 10 ? ' (High!)' : ''}
+					<strong>Counter Status:</strong>
+					${counter === 0 ? 'Zero' : counter > 0 ? 'Positive' :
+					'Negative'} ${counter > 10 ? ' (High!)' : ''}
 				</p>
-				
+
 				<p><strong>Double:</strong> ${counter * 2}</p>
 				<p><strong>Square:</strong> ${counter * counter}</p>
 			</div>
@@ -216,19 +258,19 @@
 		<section class="feature-section">
 			<h2>🎭 Conditional Rendering (data-if, data-elseif, data-else)</h2>
 			<p>Show/hide content based on conditions.</p>
-			
+
 			<div class="demo-area" data-mf-register>
 				<div class="form-group">
 					<label>Score:</label>
-					<input 
-						type="number" 
-						value="${score}" 
-						min="0" 
+					<input
+						type="number"
+						value="${score}"
+						min="0"
 						max="100"
 						onchange="${event => score = parseInt(event.target.value) || 0}"
 					/>
 				</div>
-				
+
 				<div data-if="${score >= 90}">
 					<div class="status active">🌟 Excellent! Grade: A</div>
 				</div>
@@ -244,8 +286,11 @@
 				<div data-else>
 					<div class="error">❌ Failing! Grade: F</div>
 				</div>
-				
-				<p><strong>Message:</strong> ${score >= 70 ? 'Keep up the good work!' : 'You can do better!'}</p>
+
+				<p>
+					<strong>Message:</strong> ${score >= 70 ? 'Keep up the good
+					work!' : 'You can do better!'}
+				</p>
 			</div>
 		</section>
 
@@ -253,41 +298,56 @@
 		<section class="feature-section">
 			<h2>📝 List Rendering (data-each)</h2>
 			<p>Render lists with the data-each attribute and aliasing.</p>
-			
+
 			<div class="demo-area" data-mf-register>
 				<h3>Todo List</h3>
 				<div>
-					<input 
-						id="new-todo" 
-						type="text" 
+					<input
+						id="new-todo"
+						type="text"
 						placeholder="Add a new todo..."
 						value="${newTodoText}"
 						onchange="${event => newTodoText = event.target.value}"
 						onkeypress="${event => event.key === 'Enter' ? addTodo() : null}"
 					/>
 					<button onclick="${() => addTodo()}">Add Todo</button>
-					<button onclick="${() => clearCompleted()}">Clear Completed</button>
+					<button onclick="${() => clearCompleted()}">
+						Clear Completed
+					</button>
 				</div>
-				
+
 				<div>
 					<div class="list-item" data-each="${todos}">
 						<label>
-							<input 
-								type="checkbox" 
+							<input
+								type="checkbox"
 								checked="${value.completed}"
 								onchange="${event => toggleTodo(value.id, event.target.checked)}"
 							/>
-							<span style="${value.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${value.text}</span>
+							<span
+								style="
+									$ {
+										value.completed? 'text-decoration: line-through; opacity: 0.6;' : '';
+									}
+								"
+								>${value.text}</span
+							>
 						</label>
-						<button onclick="${() => removeTodo(value.id)}">🗑️</button>
+						<button onclick="${() => removeTodo(value.id)}">
+							🗑️
+						</button>
 					</div>
-					
+
 					<div data-else>
 						<p class="info">No todos yet. Add one above!</p>
 					</div>
 				</div>
-				
-				<p><strong>Stats:</strong> ${todos.filter(t => !t.completed).length} active, ${todos.filter(t => t.completed).length} completed</p>
+
+				<p>
+					<strong>Stats:</strong> ${todos.filter(t =>
+					!t.completed).length} active, ${todos.filter(t =>
+					t.completed).length} completed
+				</p>
 			</div>
 		</section>
 
@@ -295,19 +355,22 @@
 		<section class="feature-section">
 			<h2>🎨 Dynamic Styling & Classes</h2>
 			<p>Dynamically change styles and CSS classes.</p>
-			
+
 			<div class="demo-area" data-mf-register>
 				<div class="form-group">
 					<label>Theme:</label>
-					<select value="${theme}" onchange="${event => theme = event.target.value}">
+					<select
+						value="${theme}"
+						onchange="${event => theme = event.target.value}"
+					>
 						<option value="light">Light</option>
 						<option value="dark">Dark</option>
 						<option value="blue">Blue</option>
 						<option value="red">Red</option>
 					</select>
 				</div>
-				
-				<div 
+
+				<div
 					style="${`
 						padding: 20px; 
 						border-radius: 8px; 
@@ -319,7 +382,10 @@
 				>
 					<h4>🎨 Themed Content Area</h4>
 					<p>Current theme: <strong>${theme}</strong></p>
-					<p>This area changes appearance based on the selected theme!</p>
+					<p>
+						This area changes appearance based on the selected
+						theme!
+					</p>
 				</div>
 			</div>
 		</section>
@@ -328,28 +394,54 @@
 		<section class="feature-section">
 			<h2>📊 Complex Expressions & Calculations</h2>
 			<p>Demonstrate complex JavaScript expressions in templates.</p>
-			
+
 			<div class="demo-area" data-mf-register>
 				<div class="form-group">
 					<label>Numbers (comma-separated):</label>
-					<input 
-						type="text" 
-						value="${numbersInput}" 
+					<input
+						type="text"
+						value="${numbersInput}"
 						placeholder="1, 2, 3, 4, 5"
 						onchange="${event => numbersInput = event.target.value}"
 					/>
 				</div>
-				
+
 				<div data-if="${numbersInput.trim()}">
 					<h4>📈 Statistics:</h4>
-					<p><strong>Numbers:</strong> ${numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number)}</p>
-					<p><strong>Count:</strong> ${numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).length}</p>
-					<p><strong>Sum:</strong> ${numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number).reduce((a, b) => a + b, 0)}</p>
-					<p><strong>Average:</strong> ${Math.round((numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number).reduce((a, b) => a + b, 0) / numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).length) * 100) / 100}</p>
-					<p><strong>Max:</strong> ${Math.max(...numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number))}</p>
-					<p><strong>Min:</strong> ${Math.min(...numbersInput.split(',').map(n => n.trim()).filter(n => n && !isNaN(n)).map(Number))}</p>
+					<p>
+						<strong>Numbers:</strong>
+						${numbersInput.split(',').map(n => n.trim()).filter(n =>
+						n && !isNaN(n)).map(Number)}
+					</p>
+					<p>
+						<strong>Count:</strong> ${numbersInput.split(',').map(n
+						=> n.trim()).filter(n => n && !isNaN(n)).length}
+					</p>
+					<p>
+						<strong>Sum:</strong> ${numbersInput.split(',').map(n =>
+						n.trim()).filter(n => n &&
+						!isNaN(n)).map(Number).reduce((a, b) => a + b, 0)}
+					</p>
+					<p>
+						<strong>Average:</strong>
+						${Math.round((numbersInput.split(',').map(n =>
+						n.trim()).filter(n => n &&
+						!isNaN(n)).map(Number).reduce((a, b) => a + b, 0) /
+						numbersInput.split(',').map(n => n.trim()).filter(n => n
+						&& !isNaN(n)).length) * 100) / 100}
+					</p>
+					<p>
+						<strong>Max:</strong>
+						${Math.max(...numbersInput.split(',').map(n =>
+						n.trim()).filter(n => n && !isNaN(n)).map(Number))}
+					</p>
+					<p>
+						<strong>Min:</strong>
+						${Math.min(...numbersInput.split(',').map(n =>
+						n.trim()).filter(n => n && !isNaN(n)).map(Number))}
+					</p>
 				</div>
-				
+
 				<div data-else>
 					<p class="info">Enter some numbers to see statistics!</p>
 				</div>
@@ -359,50 +451,69 @@
 		<!-- 🎮 Interactive Demo -->
 		<section class="feature-section">
 			<h2>🎮 Interactive Game Demo</h2>
-			<p>A simple number guessing game to showcase event handling and state management.</p>
-			
+			<p>
+				A simple number guessing game to showcase event handling and
+				state management.
+			</p>
+
 			<div class="demo-area" data-mf-register>
 				<div data-if="${!game.started}">
 					<h4>🎯 Number Guessing Game</h4>
-					<p>I'm thinking of a number between 1 and 100. Can you guess it?</p>
+					<p>
+						I'm thinking of a number between 1 and 100. Can you
+						guess it?
+					</p>
 					<button onclick="${() => startGame()}">Start Game</button>
 				</div>
-				
+
 				<div data-else>
 					<h4>🎯 Guess the Number (1-100)</h4>
-					<p>Attempts: ${game.attempts} | Best Score: ${game.bestScore || 'N/A'}</p>
-					
+					<p>
+						Attempts: ${game.attempts} | Best Score:
+						${game.bestScore || 'N/A'}
+					</p>
+
 					<div data-if="${!game.won}">
 						<div class="form-group">
-							<input 
-								type="number" 
-								min="1" 
+							<input
+								type="number"
+								min="1"
 								max="100"
-								value="${game.guess}" 
+								value="${game.guess}"
 								placeholder="Enter your guess"
 								onchange="${event => game.guess = parseInt(event.target.value)}"
 								onkeypress="${event => event.key === 'Enter' ? makeGuess() : null}"
 							/>
-							<button onclick="${() => makeGuess()}" disabled="${!game.guess}">
+							<button
+								onclick="${() => makeGuess()}"
+								disabled="${!game.guess}"
+							>
 								Guess!
 							</button>
 						</div>
-						
+
 						<div data-if="${game.lastGuess}">
-							<p class="${game.lastHint === 'correct' ? 'success' : 'info'}">
+							<p
+								class="${game.lastHint === 'correct' ? 'success' : 'info'}"
+							>
 								Last guess: ${game.lastGuess} - ${game.lastHint}
 							</p>
 						</div>
 					</div>
-					
+
 					<div data-else>
 						<div class="success">
 							<h4>🎉 Congratulations!</h4>
-							<p>You guessed ${game.target} in ${game.attempts} attempts!</p>
-							<button onclick="${() => startGame()}">Play Again</button>
+							<p>
+								You guessed ${game.target} in ${game.attempts}
+								attempts!
+							</p>
+							<button onclick="${() => startGame()}">
+								Play Again
+							</button>
 						</div>
 					</div>
-					
+
 					<button onclick="${() => resetGame()}">Reset Game</button>
 				</div>
 			</div>
@@ -410,48 +521,69 @@
 
 		<!-- Import and initialize Manifold -->
 		<script type="module">
-			import { state, register } from './src/index.js';
+			import { state, register } from "./src/index.js";
 
 			// Initialize states with explicit names - THIS IS KEY!
-			window.user = state({
-				name: 'John Doe',
-				age: 25,
-				isActive: false
-			}, 'user');
+			window.user = state(
+				{
+					name: "John Doe",
+					age: 25,
+					isActive: false,
+				},
+				"user"
+			);
 
-			window.counter = state(0, 'counter');
-			window.score = state(85, 'score');
-			window.theme = state('light', 'theme');
-			window.numbersInput = state('1, 2, 3, 4, 5', 'numbersInput');
-			window.newTodoText = state('', 'newTodoText');
-			
-			window.todos = state([
-				{ id: 1, text: 'Learn Manifold Framework', completed: false },
-				{ id: 2, text: 'Build awesome apps', completed: false },
-				{ id: 3, text: 'Share with the community', completed: true }
-			], 'todos');
+			window.counter = state(0, "counter");
+			window.score = state(85, "score");
+			window.theme = state("light", "theme");
+			window.numbersInput = state("1, 2, 3, 4, 5", "numbersInput");
+			window.newTodoText = state("", "newTodoText");
 
-			window.game = state({
-				started: false,
-				target: 0,
-				guess: '',
-				attempts: 0,
-				lastGuess: null,
-				lastHint: '',
-				won: false,
-				bestScore: localStorage.getItem('bestScore') ? parseInt(localStorage.getItem('bestScore')) : null
-			}, 'game');
+			window.todos = state(
+				[
+					{
+						id: 1,
+						text: "Learn Manifold Framework",
+						completed: false,
+					},
+					{ id: 2, text: "Build awesome apps", completed: false },
+					{
+						id: 3,
+						text: "Share with the community",
+						completed: true,
+					},
+				],
+				"todos"
+			);
+
+			window.game = state(
+				{
+					started: false,
+					target: 0,
+					guess: "",
+					attempts: 0,
+					lastGuess: null,
+					lastHint: "",
+					won: false,
+					bestScore: localStorage.getItem("bestScore")
+						? parseInt(localStorage.getItem("bestScore"))
+						: null,
+				},
+				"game"
+			);
 
 			// Helper functions
 			window.toggleUserStatus = () => {
-				window.user.value = { 
-					...window.user.value, 
-					isActive: !window.user.value.isActive 
+				window.user.value = {
+					...window.user.value,
+					isActive: !window.user.value.isActive,
 				};
 			};
 
 			window.saveUser = () => {
-				alert(`User saved: ${window.user.value.name}, Age: ${window.user.value.age}, Active: ${window.user.value.isActive}`);
+				alert(
+					`User saved: ${window.user.value.name}, Age: ${window.user.value.age}, Active: ${window.user.value.isActive}`
+				);
 			};
 
 			let nextTodoId = 4;
@@ -460,24 +592,28 @@
 				if (text) {
 					window.todos.value = [
 						...window.todos.value,
-						{ id: nextTodoId++, text, completed: false }
+						{ id: nextTodoId++, text, completed: false },
 					];
-					window.newTodoText.value = '';
+					window.newTodoText.value = "";
 				}
 			};
 
 			window.toggleTodo = (id, completed) => {
-				window.todos.value = window.todos.value.map(todo =>
+				window.todos.value = window.todos.value.map((todo) =>
 					todo.id === id ? { ...todo, completed } : todo
 				);
 			};
 
 			window.removeTodo = (id) => {
-				window.todos.value = window.todos.value.filter(todo => todo.id !== id);
+				window.todos.value = window.todos.value.filter(
+					(todo) => todo.id !== id
+				);
 			};
 
 			window.clearCompleted = () => {
-				window.todos.value = window.todos.value.filter(todo => !todo.completed);
+				window.todos.value = window.todos.value.filter(
+					(todo) => !todo.completed
+				);
 			};
 
 			window.startGame = () => {
@@ -485,11 +621,11 @@
 					...window.game.value,
 					started: true,
 					target: Math.floor(Math.random() * 100) + 1,
-					guess: '',
+					guess: "",
 					attempts: 0,
 					lastGuess: null,
-					lastHint: '',
-					won: false
+					lastHint: "",
+					won: false,
 				};
 			};
 
@@ -498,25 +634,25 @@
 				if (!guess) return;
 
 				const attempts = window.game.value.attempts + 1;
-				let hint = '';
+				let hint = "";
 				let won = false;
 
 				if (guess === window.game.value.target) {
-					hint = 'correct';
+					hint = "correct";
 					won = true;
 					// Update best score
 					const currentBest = window.game.value.bestScore;
 					if (!currentBest || attempts < currentBest) {
-						localStorage.setItem('bestScore', attempts.toString());
-						window.game.value = { 
-							...window.game.value, 
-							bestScore: attempts 
+						localStorage.setItem("bestScore", attempts.toString());
+						window.game.value = {
+							...window.game.value,
+							bestScore: attempts,
 						};
 					}
 				} else if (guess < window.game.value.target) {
-					hint = 'too low';
+					hint = "too low";
 				} else {
-					hint = 'too high';
+					hint = "too high";
 				}
 
 				window.game.value = {
@@ -525,7 +661,7 @@
 					lastGuess: guess,
 					lastHint: hint,
 					won,
-					guess: ''
+					guess: "",
 				};
 			};
 
@@ -534,60 +670,87 @@
 					...window.game.value,
 					started: false,
 					target: 0,
-					guess: '',
+					guess: "",
 					attempts: 0,
 					lastGuess: null,
-					lastHint: '',
-					won: false
+					lastHint: "",
+					won: false,
 				};
 			};
 
 			// Register all sections when DOM is ready
-			document.addEventListener('DOMContentLoaded', () => {
-				console.log('🚀 Manifold Framework initializing...');
-				
+			document.addEventListener("DOMContentLoaded", () => {
+				console.log("🚀 Manifold Framework initializing...");
+
 				// Verify states are properly named
-				console.log('📊 State verification:');
-				console.log('  user state name:', window.user._name);
-				console.log('  counter state name:', window.counter._name);
-				console.log('  todos state name:', window.todos._name);
-				console.log('  game state name:', window.game._name);
-				
+				console.log("📊 State verification:");
+				console.log("  user state name:", window.user._name);
+				console.log("  counter state name:", window.counter._name);
+				console.log("  todos state name:", window.todos._name);
+				console.log("  game state name:", window.game._name);
+
 				// Register all elements with data-mf-register
-				const elementsToRegister = document.querySelectorAll('[data-mf-register]');
-				console.log(`🎯 Found ${elementsToRegister.length} elements to register`);
-				
+				const elementsToRegister =
+					document.querySelectorAll("[data-mf-register]");
+				console.log(
+					`🎯 Found ${elementsToRegister.length} elements to register`
+				);
+
 				elementsToRegister.forEach((element, index) => {
 					try {
-						console.log(`  Registering element ${index + 1}:`, element.tagName);
+						console.log(
+							`  Registering element ${index + 1}:`,
+							element.tagName
+						);
 						const regEl = register(element);
-						console.log(`  ✅ Element ${index + 1} registered successfully`);
-						console.log(`     Props available:`, Object.keys(regEl._props || {}));
+						console.log(
+							`  ✅ Element ${index + 1} registered successfully`
+						);
+						console.log(
+							`     Props available:`,
+							Object.keys(regEl._props || {})
+						);
 					} catch (error) {
-						console.error(`  ❌ Element ${index + 1} registration failed:`, error);
+						console.error(
+							`  ❌ Element ${index + 1} registration failed:`,
+							error
+						);
 					}
 				});
-				
-				console.log('🎉 Manifold Framework initialized with all features!');
-				console.log('🔧 Available global functions:', { 
-					toggleUserStatus, saveUser, addTodo, toggleTodo, removeTodo, 
-					clearCompleted, startGame, makeGuess, resetGame 
+
+				console.log(
+					"🎉 Manifold Framework initialized with all features!"
+				);
+				console.log("🔧 Available global functions:", {
+					toggleUserStatus,
+					saveUser,
+					addTodo,
+					toggleTodo,
+					removeTodo,
+					clearCompleted,
+					startGame,
+					makeGuess,
+					resetGame,
 				});
-				
+
 				// Test a state update to verify reactivity
 				setTimeout(() => {
-					console.log('🧪 Testing reactivity...');
+					console.log("🧪 Testing reactivity...");
 					const originalName = window.user.value.name;
-					window.user.value = { ...window.user.value, name: 'Reactivity Test ✅' };
-					
+					window.user.value = {
+						...window.user.value,
+						name: "Reactivity Test ✅",
+					};
+
 					setTimeout(() => {
-						window.user.value = { ...window.user.value, name: originalName };
-						console.log('✅ Reactivity test completed');
+						window.user.value = {
+							...window.user.value,
+							name: originalName,
+						};
+						console.log("✅ Reactivity test completed");
 					}, 2000);
 				}, 1000);
 			});
 		</script>
-	</body>
-</html>
 	</body>
 </html>
